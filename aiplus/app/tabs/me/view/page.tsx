@@ -226,8 +226,8 @@ export default function ProfileViewPage() {
             <div style={{ opacity: 0.7, fontSize: 14 }}>まだ保存した動画がありません</div>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10 }}>
-              {savedVideos.slice(0, 6).map((v) => (
-                <div key={v.id} style={{ position: "relative", paddingBottom: "100%", overflow: "hidden", borderRadius: 8 }}>
+              {savedVideos.slice(0, 6).map((v, idx) => (
+                <div key={`saved-${v.id}-${idx}`} style={{ position: "relative", paddingBottom: "100%", overflow: "hidden", borderRadius: 8 }}>
                   <video
                     src={v.video_url}
                     controls
@@ -266,8 +266,8 @@ export default function ProfileViewPage() {
             <div style={{ opacity: 0.7, fontSize: 14 }}>まだ投稿がありません</div>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 10 }}>
-              {videos.map((v) => (
-                <div key={v.id} style={{ position: "relative", paddingBottom: "100%", overflow: "hidden", borderRadius: 8 }}>
+              {videos.map((v, idx) => (
+                <div key={`post-${v.id}-${idx}`} style={{ position: "relative", paddingBottom: "100%", overflow: "hidden", borderRadius: 8 }}>
                   <video
                     src={v.video_url}
                     style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", objectFit: "cover" }}

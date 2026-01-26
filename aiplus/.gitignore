@@ -40,7 +40,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# large video files
-../travelsound*
-../*.png
+# large video files and images
 *.mp4
+*.png
+*.jpg
+*.jpeg
+travelsound*
