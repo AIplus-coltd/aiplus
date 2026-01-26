@@ -1,0 +1,5 @@
+[
+  { "id": 1, "videoUrl": "/videos/v1.mp4", "user": "@creator1", "comments": [] },
+  { "id": 2, "videoUrl": "/videos/v2.mp4", "user": "@creator2", "comments": [] },
+  { "id": 3, "videoUrl": "/videos/v3.mp4", "user": "@creator3", "comments": [] }
+]
