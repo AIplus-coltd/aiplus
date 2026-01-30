@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI+ ロゴプレビュー</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #1a1a2e;
+            color: white;
+            padding: 20px;
+            margin: 0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            color: #5ac8fa;
+        }
+        .logo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 30px;
+            margin-top: 40px;
+        }
+        .logo-item {
+            background: #2a2a3e;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        .logo-item h3 {
+            color: #5ac8fa;
+            margin-top: 0;
+        }
+        .logo-item img {
+            width: 100%;
+            max-width: 300px;
+            height: auto;
+            border-radius: 8px;
+            background: #0a0a1e;
+        }
+        .logo-item p {
+            color: #aaa;
+            font-size: 14px;
+            margin: 10px 0 0 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 AI+ ロゴプレビュー</h1>
+        
+        <div class="logo-grid">
+            <div class="logo-item">
+                <h3>メインロゴ (512x512)</h3>
+                <img src="logo.svg" alt="AI+ メインロゴ">
+                <p>logo.svg</p>
+            </div>
+            
+            <div class="logo-item">
+                <h3>アイコン 192x192</h3>
+                <img src="icon-192.svg" alt="AI+ アイコン 192">
+                <p>icon-192.svg (角丸)</p>
+            </div>
+            
+            <div class="logo-item">
+                <h3>アイコン 512x512</h3>
+                <img src="icon-512.svg" alt="AI+ アイコン 512">
+                <p>icon-512.svg (角丸)</p>
+            </div>
+            
+            <div class="logo-item">
+                <h3>Apple用アイコン 180x180</h3>
+                <img src="apple-icon.svg" alt="AI+ Apple アイコン">
+                <p>apple-icon.svg</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

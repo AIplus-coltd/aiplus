@@ -167,90 +167,49 @@ export default function InboxPage() {
       style={{
         display: "flex",
         height: "100vh",
-        background: backgroundColor === "light" ? "#f8f8f8" : "linear-gradient(135deg, #0a0014 0%, #0f0519 50%, #1a0a28 100%)",
-        color: backgroundColor === "light" ? "#333" : "white",
+        background: "radial-gradient(ellipse at 60% 10%, #10162a 0%, #050814 100%)",
+        color: "#fff",
         overflow: "hidden",
+        fontFamily: "var(--font-geist-sans, sans-serif)",
       }}
     >
-      {/* メッセージリスト（左側） */}
+      {/* 左側：会話リスト＋検索バー */}
       <div
         style={{
-          width: "100%",
-          borderRight: "1px solid rgba(157,78,221,.1)",
+          width: 340,
+          minWidth: 220,
+          maxWidth: 400,
+          borderRight: "1.5px solid rgba(255,255,255,0.08)",
           display: "flex",
           flexDirection: "column",
+          background: "rgba(17,24,39,0.92)",
+          backdropFilter: "blur(12px)",
         }}
       >
-        {/* ヘッダー */}
-        <div
-          style={{
-            padding: "12px 16px",
-            background: backgroundColor === "light"
-              ? "#ffffff"
-              : `linear-gradient(180deg, rgba(26,10,40,.98) 0%, ${themeColor}12)`,
-            backdropFilter: "blur(20px) saturate(180%)",
-            borderBottom: backgroundColor === "light" ? "1px solid rgba(0,0,0,.08)" : `1px solid ${themeColor}26`,
-            boxShadow: backgroundColor === "light" ? "0 2px 16px rgba(0,0,0,.08)" : `0 2px 16px ${themeColor}33`,
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <div style={{ fontSize: 18, fontWeight: "bold", color: themeColor, letterSpacing: "0.02em" }}>
-            Chats {unreadCount > 0 && `(${unreadCount})`}
-          </div>
-          <div style={{ display: "flex", gap: 12 }}>
-            <button
-              onClick={() => router.push("/tabs/search")}
-              style={{
-                background: backgroundColor === "light" ? `linear-gradient(135deg, #ffffff, ${themeColor}12)` : "transparent",
-                border: backgroundColor === "light" ? `1px solid ${themeColor}33` : "none",
-                borderRadius: 12,
-                cursor: "pointer",
-                padding: 6,
-                boxShadow: backgroundColor === "light" ? "0 4px 10px rgba(0,0,0,.05)" : "none",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={themeColor} strokeWidth="2.5" strokeLinecap="round">
-                <circle cx="11" cy="11" r="7" />
-                <line x1="16.5" y1="16.5" x2="21" y2="21" />
-              </svg>
-            </button>
-            <button
-              onClick={() => setShowNewMessage(true)}
-              style={{
-                padding: "6px 12px",
-                borderRadius: 20,
-                border: "none",
-                background: `linear-gradient(135deg, ${themeColor}66, ${themeColor}4d)`,
-                color: "#ffffff",
-                cursor: "pointer",
-                fontSize: 12,
-                fontWeight: 600,
-                boxShadow: `0 0 16px ${themeColor}33`,
-                transition: "all 0.3s ease",
-              }}
-            >
-              + New
-            </button>
-          </div>
+        {/* 検索バー */}
+        <div style={{ padding: "18px 18px 8px 18px", background: "none" }}>
+          <input
+            type="text"
+            placeholder="ユーザー検索"
+            style={{
+              width: "100%",
+              padding: "10px 14px",
+              borderRadius: 10,
+              border: "1.5px solid #38BDF8",
+              background: "#0B1020",
+              color: "#fff",
+              fontSize: 15,
+              outline: "none",
+              marginBottom: 2,
+              boxShadow: "0 2px 8px #38BDF822",
+            }}
+            // 検索ロジックは省略（ダミー）
+          />
         </div>
-
         {/* 会話リスト */}
-        <div style={{ flex: 1, overflowY: "auto" }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: "0 0 8px 0" }}>
           {conversationUsers.length === 0 ? (
-            <div
-              style={{
-                padding: 16,
-                textAlign: "center",
-                opacity: 0.7,
-              }}
-            >
-              メッセージはまだありません
-            </div>
+            <div style={{ padding: 16, textAlign: "center", opacity: 0.7 }}>メッセージはまだありません</div>
           ) : (
             conversationUsers.map((user) => {
               const lastMsg = messages
@@ -259,64 +218,46 @@ export default function InboxPage() {
                     (m.from_user === user && m.to_user === "me") ||
                     (m.from_user === "me" && m.to_user === user)
                 )
-                .sort(
-                  (a, b) =>
-                    new Date(b.created_at).getTime() -
-                    new Date(a.created_at).getTime()
-                )[0];
-
-              const unread = messages.some(
-                (m) => m.from_user === user && m.to_user === "me" && !m.read
-              );
-
+                .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+              const unread = messages.some((m) => m.from_user === user && m.to_user === "me" && !m.read);
               return (
                 <div
                   key={user}
                   onClick={() => setSelectedUser(user)}
                   style={{
-                    padding: "14px 16px",
-                    borderBottom: "1px solid rgba(157,78,221,.08)",
+                    padding: "14px 18px 12px 18px",
+                    borderBottom: "1.5px solid rgba(255,255,255,0.06)",
                     cursor: "pointer",
-                    background:
-                      selectedUser === user
-                        ? "linear-gradient(90deg, rgba(157,78,221,.25), rgba(199,125,255,.15))"
-                        : "transparent",
-                    transition: "all 0.3s ease",
+                    background: selectedUser === user ? "linear-gradient(90deg, #38BDF822, #A855F722)" : "none",
+                    transition: "all 0.2s cubic-bezier(.4,0,.2,1)",
                     display: "flex",
-                    gap: 12,
+                    gap: 14,
                     alignItems: "center",
                   }}
                 >
                   {/* アバター */}
                   <div
                     style={{
-                      width: 48,
-                      height: 48,
+                      width: 44,
+                      height: 44,
                       borderRadius: "50%",
-                      background: "linear-gradient(135deg, #9d4edd, #7b2cbf)",
+                      background: "linear-gradient(135deg, #7C3AED, #38BDF8)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      fontSize: 18,
-                      border: "2px solid rgba(157,78,221,.3)",
+                      fontSize: 20,
+                      border: unread ? "2.5px solid #38BDF8" : "2px solid #23263a",
                       flexShrink: 0,
+                      color: "#fff",
+                      boxShadow: unread ? "0 0 12px #38BDF8cc" : "none",
                     }}
                   >
                     👤
                   </div>
-
                   {/* メッセージ情報 */}
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                      <div
-                        style={{
-                          fontWeight: unread ? "700" : "600",
-                          fontSize: 15,
-                          color: unread ? "#c77dff" : "#e0cffc",
-                        }}
-                      >
-                        {user}
-                      </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
+                      <div style={{ fontWeight: 700, fontSize: 15, color: unread ? "#38BDF8" : "#fff" }}>{user}</div>
                       {lastMsg && (
                         <div style={{ fontSize: 11, opacity: 0.6 }}>
                           {new Date(lastMsg.created_at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}

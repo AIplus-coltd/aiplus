@@ -1,0 +1,352 @@
+﻿"use client";
+
+import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
+
+type UserProfile = {
+  username: string;
+  bio: string;
+  avatar: string;
+  handle?: string;
+  handleLastChangedAt?: string;
+};
+
+type VideoRow = {
+  id: string;
+  user_id: string | null;
+  title: string | null;
+  description?: string;
+  video_url: string;
+  created_at: string;
+};
+
+export default function ProfileEditPage() {
+  const router = useRouter();
+  const [profile, setProfile] = useState<UserProfile>({
+    username: "",
+    bio: "",
+    avatar: "👤",
+  });
+  const [videos, setVideos] = useState<VideoRow[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [ready, setReady] = useState(false);
+  const [themeColor, setThemeColor] = useState<string>("#2b7ba8");
+  const [backgroundColor, setBackgroundColor] = useState<"light">("light");
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [handleError, setHandleError] = useState("");
+  const [originalHandle, setOriginalHandle] = useState("");
+  const [originalHandleChangedAt, setOriginalHandleChangedAt] = useState<string | null>(null);
+  const [pageGoal, setPageGoal] = useState("");
+  const [pageAudience, setPageAudience] = useState("");
+  const [pageTone, setPageTone] = useState("");
+  const [ideaMessages, setIdeaMessages] = useState<{ id: string; role: "ai" | "user"; text: string }[]>([
+    {
+      id: "ai-welcome",
+      role: "ai",
+      text: "どんなページにしたいか教えてください。目的・ターゲット・雰囲気を書けば、AIがネタ案や構成を提案します。",
+    },
+  ]);
+
+  useEffect(() => {
+    // テーマ設定を取得
+    const savedSettings = localStorage.getItem("appSettings");
+    const settings = savedSettings ? JSON.parse(savedSettings) : {};
+    const color = settings.themeColor || "blue";
+    const bgColor = settings.backgroundColor || "light";
+    
+    const themeMap: Record<string, string> = {
+      pink: "#2b7ba8",
+      blue: "#2b7ba8",
+      green: "#2b7ba8",
+      purple: "#2b7ba8",
+    };
+    
+    setThemeColor(themeMap[color] || "#2b7ba8");
+    setBackgroundColor(bgColor);
+
+    const sessionUser = sessionStorage.getItem("currentUser");
+    const storedUser = sessionUser || localStorage.getItem("currentUser");
+    if (storedUser) {
+      try {
+        const parsed = JSON.parse(storedUser);
+        setCurrentUserId(parsed?.id || null);
+      } catch {
+        setCurrentUserId(null);
+      }
+    }
+
+    // ローカルストレージからプロフィール情報と動画を取得
+    const savedProfile = localStorage.getItem("userProfile");
+    if (savedProfile) {
+      const parsedProfile = JSON.parse(savedProfile);
+      setProfile(parsedProfile);
+      setOriginalHandle((parsedProfile.handle || "").trim());
+      setOriginalHandleChangedAt(parsedProfile.handleLastChangedAt || null);
+    }
+
+    const mockVideos = localStorage.getItem("mockVideos");
+    const allVideos = mockVideos ? JSON.parse(mockVideos) : [];
+    setVideos(allVideos);
+
+    setReady(true);
+  }, []);
+
+  const handleSave = () => {
+    setHandleError("");
+    setIsSaving(true);
+
+    const rawHandle = (profile.handle || "").trim();
+    const normalizedHandle = rawHandle.replace(/^@+/, "");
+    const handleLower = normalizedHandle.toLowerCase();
+    const originalLower = (originalHandle || "").trim().toLowerCase();
+    const handleChanged = handleLower !== originalLower;
+
+    if (normalizedHandle) {
+      const valid = /^[a-zA-Z0-9._]{3,20}$/.test(normalizedHandle);
+      if (!valid) {
+        setHandleError("ハンドルは3〜20文字の英数字・.・_のみで入力してください");
+        setIsSaving(false);
+        return;
+      }
+
+      const users = JSON.parse(localStorage.getItem("aiplus_users") || "[]");
+      const duplicate = users.find(
+        (u: any) => u.handle && u.handle.toLowerCase() === handleLower && u.id !== currentUserId
+      );
+      if (duplicate) {
+        setHandleError("このハンドルは既に使用されています");
+        setIsSaving(false);
+        return;
+      }
+
+      if (handleChanged && originalHandleChangedAt) {
+        const last = new Date(originalHandleChangedAt).getTime();
+        const now = Date.now();
+        const cooldownMs = 14 * 24 * 60 * 60 * 1000;
+        if (now - last < cooldownMs) {
+          const nextDate = new Date(last + cooldownMs);
+          setHandleError(`次の変更可能日: ${nextDate.toLocaleDateString()}`);
+          setIsSaving(false);
+          return;
+        }
+      }
+    }
+
+    const changedAt = handleChanged && normalizedHandle ? new Date().toISOString() : profile.handleLastChangedAt;
+    const updatedProfile = {
+      ...profile,
+      handle: normalizedHandle,
+      handleLastChangedAt: changedAt,
+    };
+
+    // ローカルストレージにプロフィール情報を保存
+    localStorage.setItem("userProfile", JSON.stringify(updatedProfile));
+
+    if (currentUserId) {
+      const users = JSON.parse(localStorage.getItem("aiplus_users") || "[]");
+      const nextUsers = users.map((u: any) =>
+        u.id === currentUserId
+          ? { ...u, handle: normalizedHandle, handleLastChangedAt: changedAt }
+          : u
+      );
+      localStorage.setItem("aiplus_users", JSON.stringify(nextUsers));
+    }
+
+    setProfile(updatedProfile);
+    if (handleChanged) {
+      setOriginalHandle(normalizedHandle);
+      setOriginalHandleChangedAt(changedAt || null);
+    }
+    setTimeout(() => {
+      setIsSaving(false);
+      router.push("/tabs/me/view");
+    }, 300);
+  };
+
+  const avatarEmojis = ["👤", "😊", "🎉", "🚀", "💡", "⭐", "🎯", "🔥"];
+  const [avatarFileName, setAvatarFileName] = useState("");
+
+  const handleAvatarFile = (file: File | null) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+
+        let width = img.width;
+        let height = img.height;
+        const maxSize = 400;
+
+        if (width > height) {
+          if (width > maxSize) {
+            height = Math.round((height * maxSize) / width);
+            width = maxSize;
+          }
+        } else {
+          if (height > maxSize) {
+            width = Math.round((width * maxSize) / height);
+            height = maxSize;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.7);
+        setAvatarFileName(file.name);
+        setProfile((p) => ({ ...p, avatar: compressedDataUrl }));
+      };
+      if (typeof e.target?.result === "string") {
+        img.src = e.target.result;
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const pushIdeaMessage = (role: "ai" | "user", text: string) => {
+    setIdeaMessages((prev) => [...prev, { id: `${role}-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`, role, text }]);
+  };
+
+  const handleGenerateIdeas = () => {
+    const goal = pageGoal.trim() || "ファンが集まる�E己紹介�Eージ";
+    const audience = pageAudience.trim() || "動画を見てくれる潜在フォロワー";
+    const tone = pageTone.trim() || "親しみめE��くワクワク";
+
+    pushIdeaMessage("user", `目樁E ${goal}\nターゲチE��: ${audience}\n雰囲氁E ${tone}`);
+
+    const suggestions = [
+      `レイアウト桁E ヒ�Eローエリアに1フレーズのキャチE��と最新動画1本を埋め込み。下に「人氁E本」「�Eじめての人はこれ」をカードで並べる。`,
+      `CTA: フォローボタンと「次のライブ予定」を並列�E置。�Eロフィール冒頭に1つだけ強ぁE��クションを置く。`,
+      `コンチE��チE��E ${goal} を軸に、\n- 30秒でわかる�E己紹介ショーチEn- 毎週の裏�EVlogプレイリスチEn- 視�E老E�E質問に答えるQ&AスレチE��`,
+      `ト�Eン: ${tone} に合わせて色はチE�Eマカラーを薄めたグラチE��景、フォント�E読みめE��さ優先。`,
+      `収益/誘封E 無料オファー�E�チェチE��リスチEチE��プレ�E�をペ�Eジ中段に設置し、メールやSNSリンクを横並びに。`,
+      `改喁E��ーチE クリチE��/再生の多いブロチE��を優先表示。週1で「反応トチE�E3」を固定欁E��差し替え。`,
+    ];
+
+    pushIdeaMessage("ai", suggestions.join("\n\n"));
+  };
+
+  if (!ready) {
+    return <div style={{ padding: 20, color: backgroundColor === "light" ? "#333" : "white" }}>Loading...</div>;
+  }
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        minHeight: "100vh",
+        background: backgroundColor === "light" ? "#f8f8f8" : "linear-gradient(135deg, rgba(10,0,20,.98) 0%, rgba(15,5,25,.96) 100%)",
+        color: backgroundColor === "light" ? "#333" : "white",
+      }}
+    >
+      {/* ヘッダー */}
+      <div
+        style={{
+          background: backgroundColor === "light"
+            ? "linear-gradient(180deg, rgba(245,245,245,.95) 0%, rgba(240,240,240,.93) 100%)"
+            : "linear-gradient(180deg, rgba(20,0,40,.95) 0%, rgba(30,5,60,.93) 100%)",
+          boxShadow: backgroundColor === "light"
+            ? "0 2px 16px rgba(0,0,0,.08), inset 0 -1px 0 rgba(0,0,0,.05)"
+            : `0 2px 16px ${themeColor}33, inset 0 -1px 0 ${themeColor}1a`,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <button
+          onClick={() => router.push("/tabs/me/view")}
+          style={{
+            background: "transparent",
+            border: "none",
+            color: themeColor,
+            cursor: "pointer",
+            fontSize: 18,
+          }}
+        >
+          ←
+        </button>
+        <div style={{ color: themeColor, fontWeight: "bold" }}>マイページ編集</div>
+        <button
+          onClick={handleSave}
+          disabled={isSaving}
+          style={{
+            background: isSaving ? `${themeColor}4d` : `linear-gradient(135deg, ${themeColor}bf, ${themeColor}a6)`,
+            border: `1px solid ${themeColor}80`,
+            color: backgroundColor === "light" ? themeColor : "white",
+            padding: "8px 12px",
+            borderRadius: 6,
+            cursor: isSaving ? "not-allowed" : "pointer",
+            fontSize: 14,
+            fontWeight: 600,
+            boxShadow: `0 0 16px ${themeColor}4d, inset 0 1px 0 ${themeColor}26`,
+          }}
+        >
+          {isSaving ? "保存中..." : "保存"}
+        </button>
+      </div>
+
+      {/* ここに既存�E編雁EI�E�簡略�E��Eの編雁E�Eージから忁E��箁E��を�E置�E�E*/}
+      <div style={{ padding: 16, display: "grid", gap: 16 }}>
+        <div style={{ padding: 14, borderRadius: 12, border: `1px solid ${themeColor}33`, background: backgroundColor === "light" ? "#fff" : `linear-gradient(135deg, ${themeColor}0d, ${themeColor}06)` }}>
+          <div style={{ marginBottom: 8, fontWeight: 700, color: themeColor }}>プロフィール</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
+            <div>
+              <label style={{ fontSize: 12, opacity: 0.75 }}>名前</label>
+              <input value={profile.username} onChange={(e) => setProfile({ ...profile, username: e.target.value })} placeholder="表示名" style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${themeColor}33`, background: backgroundColor === "light" ? "#ffffff" : `linear-gradient(135deg, ${themeColor}1a, ${themeColor}0d)` }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, opacity: 0.75 }}>ハンドル（@ユーザー名）</label>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontWeight: 700, color: themeColor }}>@</span>
+                <input
+                  value={profile.handle || ""}
+                  onChange={(e) => setProfile({ ...profile, handle: e.target.value })}
+                  placeholder="aiplus"
+                  style={{
+                    width: "100%",
+                    padding: "10px 12px",
+                    borderRadius: 10,
+                    border: `1px solid ${themeColor}33`,
+                    background: backgroundColor === "light" ? "#ffffff" : `linear-gradient(135deg, ${themeColor}1a, ${themeColor}0d)`,
+                  }}
+                />
+              </div>
+              <div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>
+                変更後14日間は再変更できません（初回は即時変更可）
+              </div>
+              {handleError && (
+                <div style={{ fontSize: 11, color: "#ff6b6b", marginTop: 6 }}>
+                  {handleError}
+                </div>
+              )}
+            </div>
+            <div>
+              <label style={{ fontSize: 12, opacity: 0.75 }}>自己紹介</label>
+              <textarea value={profile.bio} onChange={(e) => setProfile({ ...profile, bio: e.target.value })} placeholder="140文字まで" rows={4} style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${themeColor}33`, background: backgroundColor === "light" ? "#ffffff" : `linear-gradient(135deg, ${themeColor}1a, ${themeColor}0d)` }} />
+            </div>
+          </div>
+        </div>
+
+        <div style={{ padding: 14, borderRadius: 12, border: `1px solid ${themeColor}33`, background: backgroundColor === "light" ? "#fff" : `linear-gradient(135deg, ${themeColor}0d, ${themeColor}06)` }}>
+          <div style={{ marginBottom: 8, fontWeight: 700, color: themeColor }}>アイコン</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            {avatarEmojis.map((emo) => (
+              <button key={emo} onClick={() => setProfile({ ...profile, avatar: emo })} style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${themeColor}33`, background: backgroundColor === "light" ? "#fff" : `linear-gradient(135deg, ${themeColor}12, ${themeColor}08)`, cursor: "pointer", fontSize: 20 }}>{emo}</button>
+            ))}
+            <label style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+              <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => handleAvatarFile(e.target.files?.[0] || null)} />
+              <span style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${themeColor}66`, background: `linear-gradient(135deg, ${themeColor}4d, ${themeColor}33)`, color: "white", fontWeight: 700 }}>画像から選ぶ</span>
+              <span style={{ fontSize: 12, opacity: 0.7 }}>{avatarFileName || "未選択"}</span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+

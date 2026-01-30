@@ -7,6 +7,8 @@ type UserProfile = {
   username: string;
   bio: string;
   avatar: string;
+  handle?: string;
+  handleLastChangedAt?: string;
 };
 
 type VideoRow = {
@@ -40,14 +42,46 @@ export default function ProfileViewPage() {
     setThemeColor(themeMap[color] || "#ff1493");
     setBackgroundColor(bgColor);
 
-    const savedProfile = localStorage.getItem("userProfile");
-    if (savedProfile) {
-      setProfile(JSON.parse(savedProfile));
+    // 現在のユーザーIDを取得
+    let userId = null;
+    const userSessionRaw = sessionStorage.getItem("currentUser") || localStorage.getItem("currentUser");
+    if (userSessionRaw) {
+      try {
+        const parsed = JSON.parse(userSessionRaw);
+        userId = parsed.id;
+      } catch {}
+    }
+    if (userId) {
+      const savedProfile = localStorage.getItem(`userProfile_${userId}`);
+      if (savedProfile) {
+        setProfile(JSON.parse(savedProfile));
+      }
     }
 
-    const mockVideos = localStorage.getItem("mockVideos");
-    const allVideos = mockVideos ? JSON.parse(mockVideos) : [];
-    setVideos(allVideos);
+    const userSessionRaw2 = sessionStorage.getItem("currentUser");
+    const storedUser = userSessionRaw2 || localStorage.getItem("currentUser");
+    if (storedUser) {
+      try {
+        const parsed = JSON.parse(storedUser);
+        const users = JSON.parse(localStorage.getItem("aiplus_users") || "[]");
+        const me = users.find((u: any) => u.id === parsed?.id);
+        if (me?.handle) {
+          setProfile((prev) => ({ ...prev, handle: me.handle }));
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    // ユーザーごとの投稿のみ表示
+    let userVideos: VideoRow[] = [];
+    if (userId) {
+      const userVideosRaw = localStorage.getItem(`videos_${userId}`);
+      if (userVideosRaw) {
+        userVideos = JSON.parse(userVideosRaw);
+      }
+    }
+    setVideos(userVideos);
 
     const saved = localStorage.getItem("savedVideos");
     const savedList = saved ? JSON.parse(saved) : [];
@@ -105,12 +139,19 @@ export default function ProfileViewPage() {
           onClick={() => router.push("/tabs/me")}
           style={{ background: "transparent", border: "none", color: themeColor, cursor: "pointer", fontSize: 15 }}
         >
-          編集
+          ←
         </button>
-        <div style={{ fontWeight: "bold", color: themeColor, textShadow: `0 0 16px ${themeColor}66`, fontSize: 18 }}>
+        <div style={{ flex: 1, textAlign: "center", fontWeight: 700, color: themeColor, fontSize: 18 }}>
           マイページ
         </div>
-        <div style={{ width: 48 }} />
+        <button
+          onClick={() => router.push("/settings")}
+          style={{ background: "transparent", border: "none", color: themeColor, cursor: "pointer", fontSize: 20, padding: "4px 8px" }}
+          title="管理ページ"
+        >
+          ⚙
+        </button>
+        
       </div>
 
       {/* コンテンツ */}
@@ -145,8 +186,21 @@ export default function ProfileViewPage() {
               overflow: "hidden",
             }}
           >
-            {profile.avatar && profile.avatar.startsWith("http") ? (
-              <img src={profile.avatar} alt="avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            {profile.avatar && !["👤", "😊", "🎉", "🚀", "💡", "⭐", "🎯", "🔥"].includes(profile.avatar) ? (
+              <img
+                src={profile.avatar}
+                alt="avatar"
+                style={{
+                  width: 64,
+                  height: 64,
+                  objectFit: "cover",
+                  borderRadius: "50%",
+                  border: `2px solid ${themeColor}`,
+                  background: "#fff",
+                  display: "block",
+                  margin: "0 auto"
+                }}
+              />
             ) : (
               profile.avatar || "👤"
             )}
@@ -155,6 +209,11 @@ export default function ProfileViewPage() {
             <div style={{ fontSize: 17, fontWeight: 700, color: themeColor, marginBottom: 6 }}>
               {profile.username || "（未設定）"}
             </div>
+            {profile.handle && (
+              <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 6 }}>
+                @{profile.handle}
+              </div>
+            )}
             <div style={{ fontSize: 12, opacity: 0.75, whiteSpace: "pre-wrap", lineHeight: 1.6 }}>
               {profile.bio || "自己紹介がまだありません"}
             </div>

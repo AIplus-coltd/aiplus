@@ -13,12 +13,12 @@ export default function SettingsPage() {
   const router = useRouter();
   const [settings, setSettings] = useState<Settings>({
     privacy: "public",
-    themeColor: "pink",
-    backgroundColor: "dark",
+    themeColor: "blue",
+    backgroundColor: "light",
   });
   const [isSaving, setIsSaving] = useState(false);
-  const [themeColor, setThemeColor] = useState<string>("#ff1493");
-  const [backgroundColor, setBackgroundColor] = useState<"dark" | "light">("dark");
+  const [themeColor, setThemeColor] = useState<string>("#2b7ba8");
+  const [backgroundColor, setBackgroundColor] = useState<"dark" | "light">("light");
 
   useEffect(() => {
     // ローカルストレージから設定を取得
@@ -29,13 +29,13 @@ export default function SettingsPage() {
       
       // テーマ色を更新
       const themeMap: Record<string, string> = {
-        pink: "#ff1493",
-        blue: "#64b5f6",
-        green: "#81c784",
-        purple: "#9d4edd",
+        pink: "#2b7ba8",
+        blue: "#2b7ba8",
+        green: "#2b7ba8",
+        purple: "#2b7ba8",
       };
-      setThemeColor(themeMap[parsed.themeColor] || "#ff1493");
-      setBackgroundColor(parsed.backgroundColor || "dark");
+      setThemeColor(themeMap[parsed.themeColor] || "#2b7ba8");
+      setBackgroundColor(parsed.backgroundColor || "light");
     }
   }, []);
 
@@ -101,7 +101,7 @@ export default function SettingsPage() {
         }}
       >
         <button
-          onClick={() => router.back()}
+          onClick={() => router.push("/tabs/me")}
           style={{
             background: "transparent",
             border: "none",
@@ -270,6 +270,78 @@ export default function SettingsPage() {
             ℹ️ その他
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <button
+              onClick={() => router.push("/settings/privacy")}
+              style={{
+                padding: 12,
+                borderRadius: 10,
+                border: backgroundColor === "light"
+                  ? "1px solid rgba(0,0,0,.08)"
+                  : `1px solid ${themeColor}33`,
+                background: backgroundColor === "light" ? "#ffffff" : "rgba(26,10,40,.6)",
+                color: backgroundColor === "light" ? "#333" : "white",
+                cursor: "pointer",
+                textAlign: "left",
+                transition: "all 0.3s ease",
+                fontWeight: "500",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                boxShadow: backgroundColor === "light" ? "0 8px 20px rgba(0,0,0,.06)" : `0 8px 20px ${themeColor}1f`,
+              }}
+            >
+              <span>プライバシーポリシー</span>
+              <span style={{ opacity: 0.8, color: themeColor }}>→</span>
+            </button>
+
+            <button
+              onClick={() => router.push("/settings/rules")}
+              style={{
+                padding: 12,
+                borderRadius: 10,
+                border: backgroundColor === "light"
+                  ? "1px solid rgba(0,0,0,.08)"
+                  : `1px solid ${themeColor}33`,
+                background: backgroundColor === "light" ? "#ffffff" : "rgba(26,10,40,.6)",
+                color: backgroundColor === "light" ? "#333" : "white",
+                cursor: "pointer",
+                textAlign: "left",
+                transition: "all 0.3s ease",
+                fontWeight: "500",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                boxShadow: backgroundColor === "light" ? "0 8px 20px rgba(0,0,0,.06)" : `0 8px 20px ${themeColor}1f`,
+              }}
+            >
+              <span>利用規約</span>
+              <span style={{ opacity: 0.8, color: themeColor }}>→</span>
+            </button>
+
+            <button
+              onClick={() => router.push("/settings/contact")}
+              style={{
+                padding: 12,
+                borderRadius: 10,
+                border: backgroundColor === "light"
+                  ? "1px solid rgba(0,0,0,.08)"
+                  : `1px solid ${themeColor}33`,
+                background: backgroundColor === "light" ? "#ffffff" : "rgba(26,10,40,.6)",
+                color: backgroundColor === "light" ? "#333" : "white",
+                cursor: "pointer",
+                textAlign: "left",
+                transition: "all 0.3s ease",
+                fontWeight: "500",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                boxShadow: backgroundColor === "light" ? "0 8px 20px rgba(0,0,0,.06)" : `0 8px 20px ${themeColor}1f`,
+              }}
+            >
+              <span>お問い合わせ</span>
+              <span style={{ opacity: 0.8, color: themeColor }}>→</span>
+            </button>
+
             <div
               style={{
                 padding: 12,
@@ -285,6 +357,41 @@ export default function SettingsPage() {
               <div style={{ fontWeight: "600", marginBottom: 4 }}>アプリバージョン</div>
               <div>1.0.0</div>
             </div>
+
+            <button
+              onClick={() => {
+                localStorage.removeItem("userProfile");
+                localStorage.removeItem("mockVideos");
+                localStorage.removeItem("appSettings");
+                localStorage.removeItem("currentUser");
+                localStorage.removeItem("autoLoginUserId");
+                localStorage.removeItem("editorSession");
+                localStorage.removeItem("editorCutConfig");
+                sessionStorage.removeItem("currentUser");
+                // ページリロードしてからログインページへ
+                setTimeout(() => {
+                  router.replace("/login");
+                  window.location.reload();
+                }, 100);
+              }}
+              style={{
+                padding: 12,
+                borderRadius: 10,
+                border: `1px solid rgba(255,100,150,.4)`,
+                background: "rgba(255,120,180,.12)",
+                color: "rgba(255,210,230,.9)",
+                cursor: "pointer",
+                textAlign: "left",
+                transition: "all 0.3s ease",
+                fontWeight: "500",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <span>ログアウト</span>
+              <span style={{ opacity: 0.8 }}>→</span>
+            </button>
           </div>
         </div>
       </div>

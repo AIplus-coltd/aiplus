@@ -1,0 +1,218 @@
+﻿"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+
+export default function ForgotIdPage() {
+  const router = useRouter();
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [birthDate, setBirthDate] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [foundId, setFoundId] = useState("");
+  const [themeColor, setThemeColor] = useState<string>("#2b7ba8");
+
+  useEffect(() => {
+    const savedSettings = localStorage.getItem("appSettings");
+    if (savedSettings) {
+      const parsed = JSON.parse(savedSettings);
+      const themeMap: Record<string, string> = {
+        pink: "#2b7ba8",
+        blue: "#2b7ba8",
+        green: "#2b7ba8",
+        purple: "#2b7ba8",
+      };
+      setThemeColor(themeMap[parsed.themeColor] || "#2b7ba8");
+    }
+  }, []);
+
+  const handleFindId = () => {
+    setError("");
+    setFoundId("");
+
+    if (!phoneNumber || !birthDate) {
+      setError("電話番号と生年月日を�E力してください");
+      return;
+    }
+
+    setLoading(true);
+
+    const userAuth = localStorage.getItem("userAuth");
+    if (!userAuth) {
+      setError("登録惁E��が見つかりません");
+      setLoading(false);
+      return;
+    }
+
+    const auth = JSON.parse(userAuth);
+    if (auth.phoneNumber === phoneNumber && auth.birthDate === birthDate) {
+      setFoundId(auth.id);
+      setLoading(false);
+    } else {
+      setError("入力された惁E��が一致しません");
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 24,
+        background: "linear-gradient(135deg, rgba(10,0,20,.98) 0%, rgba(15,5,25,.96) 100%)",
+        color: "white",
+      }}
+    >
+      <div style={{ width: "min(400px, 92vw)", fontFamily: "sans-serif" }}>
+        <button
+          onClick={() => router.back()}
+          style={{
+            background: "transparent",
+            border: "none",
+            color: themeColor,
+            cursor: "pointer",
+            fontSize: 20,
+            marginBottom: 16,
+          }}
+        >
+          ↁE
+        </button>
+
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <h1 style={{ margin: 0, fontSize: 28, color: themeColor, textShadow: `0 0 20px ${themeColor}88` }}>
+            IDを忘れた方
+          </h1>
+          <p style={{ opacity: 0.8, fontSize: 13, marginTop: 8 }}>
+            登録時�E電話番号と生年月日を�E力してください
+          </p>
+        </div>
+
+        {error && (
+          <div
+            style={{
+              padding: 12,
+              borderRadius: 8,
+              background: "rgba(255,0,0,.1)",
+              border: "1px solid rgba(255,0,0,.3)",
+              color: "#ff6b6b",
+              fontSize: 13,
+              marginBottom: 16,
+              textAlign: "center",
+            }}
+          >
+            {error}
+          </div>
+        )}
+
+        {foundId && (
+          <div
+            style={{
+              padding: 16,
+              borderRadius: 8,
+              background: `${themeColor}22`,
+              border: `1px solid ${themeColor}44`,
+              marginBottom: 16,
+              textAlign: "center",
+            }}
+          >
+            <div style={{ fontSize: 13, opacity: 0.9, marginBottom: 8 }}>
+              あなた�EIDは
+            </div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: themeColor }}>
+              {foundId}
+            </div>
+          </div>
+        )}
+
+        {!foundId && (
+          <>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: "block" }}>
+                電話番号
+              </label>
+              <input
+                type="tel"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                placeholder="09012345678"
+                style={{
+                  width: "100%",
+                  padding: 12,
+                  borderRadius: 8,
+                  border: `1px solid ${themeColor}33`,
+                  background: "rgba(26,10,40,.6)",
+                  color: "white",
+                  fontSize: 14,
+                  outline: "none",
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: "block" }}>
+                生年月日
+              </label>
+              <input
+                type="date"
+                value={birthDate}
+                onChange={(e) => setBirthDate(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: 12,
+                  borderRadius: 8,
+                  border: `1px solid ${themeColor}33`,
+                  background: "rgba(26,10,40,.6)",
+                  color: "white",
+                  fontSize: 14,
+                  outline: "none",
+                }}
+              />
+            </div>
+
+            <button
+              onClick={handleFindId}
+              disabled={loading}
+              style={{
+                width: "100%",
+                padding: 14,
+                borderRadius: 10,
+                border: `1px solid ${themeColor}80`,
+                background: `linear-gradient(135deg, ${themeColor}b3, ${themeColor}80)`,
+                color: "#ffffff",
+                fontSize: 15,
+                cursor: loading ? "not-allowed" : "pointer",
+                fontWeight: 700,
+                boxShadow: `0 0 24px ${themeColor}44`,
+              }}
+            >
+              {loading ? "確認中..." : "IDを確認"}
+            </button>
+          </>
+        )}
+
+        {foundId && (
+          <button
+            onClick={() => router.push("/login")}
+            style={{
+              width: "100%",
+              padding: 14,
+              borderRadius: 10,
+              border: `1px solid ${themeColor}55`,
+              background: "transparent",
+              color: themeColor,
+              fontSize: 15,
+              cursor: "pointer",
+              fontWeight: 600,
+            }}
+          >
+            ログインペ�Eジへ
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+

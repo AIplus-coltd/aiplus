@@ -1,0 +1,12 @@
+<svg width="192" height="192" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="192" height="192" fill="#f5f5f5" rx="32"/>
+  
+  <path d="M 73 97 C 65 93 61 86 61 79 C 61 68 70 58 81 58 C 84 51 93 45 102 45 C 114 45 126 54 129 67 C 141 70 150 79 150 92 C 150 106 141 117 129 117 L 81 117 C 71 117 64 109 64 100" 
+        fill="none" 
+        stroke="#2b7ba8" 
+        stroke-width="12" 
+        stroke-linecap="round" 
+        stroke-linejoin="round"/>
+  
+  <text x="96" y="157" font-family="Arial, sans-serif" font-size="52" font-weight="900" fill="#3d4752" text-anchor="middle" letter-spacing="-2">AI+</text>
+</svg>

@@ -291,9 +291,10 @@ export default function ShopPage() {
                     }}
                     onClick={(e) => {
                       e.stopPropagation();
+                      router.push(`/shop/${product.id}`);
                     }}
                   >
-                    Buy Now
+                    詳細
                   </button>
                 </div>
               </div>
@@ -408,9 +409,10 @@ export default function ShopPage() {
                       }}
                       onClick={(e) => {
                         e.stopPropagation();
+                        router.push(`/shop/${product.id}`);
                       }}
                     >
-                      Buy Now
+                      詳細
                     </button>
                   </div>
                 </div>

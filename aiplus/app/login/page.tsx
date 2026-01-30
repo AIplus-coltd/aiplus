@@ -2,97 +2,251 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase/client";
 
 export default function LoginPage() {
   const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState("");
+  const [error, setError] = useState("");
+  const [themeColor, setThemeColor] = useState<string>("#ff1493");
+  const [backgroundColor, setBackgroundColor] = useState<"dark" | "light">("dark");
+  const [rememberMe, setRememberMe] = useState(false);
+  const [showForgotHint, setShowForgotHint] = useState(false);
 
   useEffect(() => {
-    // テスト用：認証をスキップしてフィードへ直接リダイレクト
-    router.replace("/feed");
-  }, [router]);
+    const savedSettings = localStorage.getItem("appSettings");
+    const settings = savedSettings ? JSON.parse(savedSettings) : {};
+    const color = settings.themeColor || "pink";
+    const bgColor = settings.backgroundColor || "dark";
+    
+    const themeMap: Record<string, string> = {
+      pink: "#ff1493",
+      blue: "#64b5f6",
+      green: "#81c784",
+      purple: "#9d4edd",
+    };
+    
+    setThemeColor(themeMap[color] || "#ff1493");
+    setBackgroundColor(bgColor);
 
-  const signInAnon = async () => {
+    const autoLoginUserId = localStorage.getItem("autoLoginUserId");
+    if (autoLoginUserId) {
+      setRememberMe(true);
+    }
+  }, []);
+
+  const handleLogin = async () => {
+    setError("");
+    setShowForgotHint(false);
     setLoading(true);
-    setMsg("");
 
-    // 10秒でタイムアウト表示
-    const timer = setTimeout(() => {
-      setMsg(
-        "ログインが返ってきません（通信/ENVの可能性）。下のチェックを実行してください。"
-      );
+    if (!email || !password) {
+      setError("メールアドレスとパスワードを入力してください");
       setLoading(false);
-    }, 10000);
+      return;
+    }
 
     try {
-      console.log("🔍 ログイン開始:", supabase);
-      const { data, error } = await supabase.auth.signInAnonymously();
-      clearTimeout(timer);
+      const users = JSON.parse(localStorage.getItem("aiplus_users") || "[]");
+      const user = users.find((u: any) => u.email === email && u.password === password);
+      const emailExists = users.some((u: any) => u.email === email);
 
-      console.log("📤 レスポンス:", { data, error });
-
-      if (error) {
-        console.error("❌ エラー:", error);
-        setMsg("ログイン失敗: " + error.message);
+      if (!user) {
+        if (emailExists) {
+          setError("このメールアドレスは既に登録されています");
+          setShowForgotHint(true);
+        } else {
+          setError("メールアドレスまたはパスワードが正しくありません");
+        }
         setLoading(false);
         return;
       }
 
-      // セッション確認（ここで null ならENVが怪しい）
-      const session = (await supabase.auth.getSession()).data.session;
-      console.log("✅ セッション:", session);
-      
-      if (!session) {
-        setMsg("ログイン後も session が空です（ENV/プロジェクト不一致の可能性）。");
-        setLoading(false);
-        return;
+      const sessionUser = {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+      };
+
+      // セッションに保存
+      sessionStorage.setItem("currentUser", JSON.stringify(sessionUser));
+
+      // 自動ログインを有効にする場合のみ端末に保存
+      if (rememberMe) {
+        localStorage.setItem("currentUser", JSON.stringify(sessionUser));
+        localStorage.setItem("autoLoginUserId", user.id);
+      } else {
+        localStorage.removeItem("currentUser");
+        localStorage.removeItem("autoLoginUserId");
       }
 
-      router.replace("/feed");
-      router.refresh();
-    } catch (e: any) {
-      clearTimeout(timer);
-      console.error("💥 例外:", e);
-      setMsg("例外: " + (e?.message ?? String(e)));
+      setLoading(false);
+      router.push("/tabs/feed");
+    } catch (err) {
+      setError("ログインに失敗しました");
       setLoading(false);
     }
   };
 
   return (
-    <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24, background: "linear-gradient(135deg, rgba(10,0,20,.98) 0%, rgba(15,5,25,.96) 100%)", color: "white" }}>
-      <div style={{ width: "min(480px, 92vw)", textAlign: "center", fontFamily: "sans-serif" }}>
-        <h1 style={{ margin: 0, fontSize: 28, color: "#FF99FF", textShadow: "0 0 20px rgba(200,100,255,.5)" }}>AI＋</h1>
-        <p style={{ opacity: 0.8, fontSize: 13, color: "rgba(255,200,255,.8)" }}>まずは匿名で開始（登録なし）→ フィードへ</p>
-
-        <button
-          onClick={signInAnon}
-          disabled={loading}
-          style={{
-            width: "100%",
-            padding: "12px 14px",
-            borderRadius: 10,
-            border: "1px solid rgba(200,100,255,.5)",
-            background: "linear-gradient(135deg, rgba(150,50,255,.75), rgba(200,100,255,.65))",
-            color: "#FFB0FF",
-            fontSize: 14,
-            cursor: loading ? "not-allowed" : "pointer",
-            fontWeight: 600,
-            boxShadow: "0 0 24px rgba(200,100,255,.5), inset 0 1px 0 rgba(255,200,255,.15)",
-          }}
-        >
-          {loading ? "ログイン中..." : "匿名で開始"}
-        </button>
-
-        {msg && (
-          <div style={{ marginTop: 12, color: "#FF6B9D", fontSize: 12, lineHeight: 1.4 }}>
-            {msg}
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        minHeight: "100vh",
+        background: backgroundColor === "light"
+          ? "#ffffff"
+          : "linear-gradient(135deg, rgba(10,0,20,.98) 0%, rgba(15,5,25,.96) 100%)",
+        color: backgroundColor === "light" ? "#333" : "white",
+        padding: 20,
+        justifyContent: "center",
+        alignItems: "center",
+      }}
+    >
+      <div style={{ width: "100%", maxWidth: 375, display: "flex", flexDirection: "column", gap: 20 }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>🎬</div>
+          <div style={{ 
+            fontSize: 48, 
+            fontWeight: "bold", 
+            marginBottom: 8,
+            background: "linear-gradient(135deg, #00D4FF 0%, #0052FF 100%)",
+            backgroundClip: "text",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            color: "transparent",
+          }}>
+            AI＋
           </div>
-        )}
+        </div>
 
-        <div style={{ marginTop: 12, fontSize: 12, opacity: 0.75, color: "rgba(255,200,255,.7)" }}>
-          Supabase → Authentication → Providers で Anonymous を有効化
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="メールアドレス"
+            style={{
+              padding: "12px 16px",
+              borderRadius: 10,
+              border: `1px solid ${backgroundColor === "light" ? "rgba(0,0,0,.12)" : themeColor}40`,
+              background: backgroundColor === "light" ? "#f5f5f5" : `linear-gradient(135deg, ${themeColor}1a, ${themeColor}0d)`,
+              color: backgroundColor === "light" ? "#333" : "white",
+              fontSize: 14,
+            }}
+          />
+          
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="パスワード"
+            style={{
+              padding: "12px 16px",
+              borderRadius: 10,
+              border: `1px solid ${backgroundColor === "light" ? "rgba(0,0,0,.12)" : themeColor}40`,
+              background: backgroundColor === "light" ? "#f5f5f5" : `linear-gradient(135deg, ${themeColor}1a, ${themeColor}0d)`,
+              color: backgroundColor === "light" ? "#333" : "white",
+              fontSize: 14,
+            }}
+          />
+
+          {showForgotHint && (
+            <div style={{ fontSize: 12, opacity: 0.8 }}>
+              パスワードをお忘れの方は{" "}
+              <button
+                onClick={() => router.push("/login/forgot-password")}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: themeColor,
+                  cursor: "pointer",
+                  fontWeight: 700,
+                  textDecoration: "underline",
+                  fontSize: 12,
+                  padding: 0,
+                }}
+              >
+                こちら
+              </button>
+            </div>
+          )}
+
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              fontSize: 12,
+              opacity: 0.8,
+              color: backgroundColor === "light" ? "#555" : "white",
+              userSelect: "none",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              style={{
+                width: 16,
+                height: 16,
+                accentColor: themeColor,
+              }}
+            />
+            この端末で自動ログイン
+          </label>
+
+          {error && (
+            <div
+              style={{
+                padding: 12,
+                borderRadius: 8,
+                border: `1px solid rgba(255,100,150,.4)`,
+                background: "rgba(255,120,180,.12)",
+                color: "rgba(255,210,230,.9)",
+                fontSize: 12,
+              }}
+            >
+              {error}
+            </div>
+          )}
+
+          <button
+            onClick={handleLogin}
+            disabled={loading}
+            style={{
+              padding: "12px 16px",
+              borderRadius: 10,
+              border: `1px solid ${themeColor}80`,
+              background: `linear-gradient(135deg, ${themeColor}bf, ${themeColor}a6)`,
+              color: "white",
+              cursor: loading ? "not-allowed" : "pointer",
+              fontSize: 14,
+              fontWeight: 700,
+              boxShadow: `0 0 12px ${themeColor}66`,
+            }}
+          >
+            {loading ? "ログイン中..." : "ログイン"}
+          </button>
+        </div>
+
+        <div style={{ textAlign: "center", fontSize: 12, opacity: 0.7 }}>
+          アカウントをお持ちでない場合は{" "}
+          <button
+            onClick={() => router.push("/register")}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: themeColor,
+              cursor: "pointer",
+              fontWeight: 700,
+              textDecoration: "underline",
+              fontSize: 12,
+            }}
+          >
+            新規登録
+          </button>
         </div>
       </div>
     </div>

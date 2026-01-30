@@ -59,13 +59,31 @@ export default function ProfileEditPage() {
     setBackgroundColor(bgColor);
 
     // ローカルストレージからプロフィール情報と動画を取得
-    const savedProfile = localStorage.getItem("userProfile");
-    if (savedProfile) {
-      setProfile(JSON.parse(savedProfile));
+    // 現在のユーザーIDを取得
+    let userId = null;
+    const sessionUser = sessionStorage.getItem("currentUser") || localStorage.getItem("currentUser");
+    if (sessionUser) {
+      try {
+        const parsed = JSON.parse(sessionUser);
+        userId = parsed.id;
+      } catch {}
+    }
+    if (userId) {
+      const savedProfile = localStorage.getItem(`userProfile_${userId}`);
+      if (savedProfile) {
+        setProfile(JSON.parse(savedProfile));
+      }
     }
 
-    const mockVideos = localStorage.getItem("mockVideos");
-    const allVideos = mockVideos ? JSON.parse(mockVideos) : [];    setVideos(allVideos);
+    // ユーザーごとに投稿を分離
+    let userVideos: VideoRow[] = [];
+    if (userId) {
+      const userVideosRaw = localStorage.getItem(`videos_${userId}`);
+      if (userVideosRaw) {
+        userVideos = JSON.parse(userVideosRaw);
+      }
+    }
+    setVideos(userVideos);
 
     setReady(true);
 
@@ -96,7 +114,18 @@ export default function ProfileEditPage() {
     setIsSaving(true);
     
     // ローカルストレージにプロフィール情報を保存
-    localStorage.setItem("userProfile", JSON.stringify(profile));
+    // 現在のユーザーIDを取得
+    let userId = null;
+    const sessionUser = sessionStorage.getItem("currentUser") || localStorage.getItem("currentUser");
+    if (sessionUser) {
+      try {
+        const parsed = JSON.parse(sessionUser);
+        userId = parsed.id;
+      } catch {}
+    }
+    if (userId) {
+      localStorage.setItem(`userProfile_${userId}` , JSON.stringify(profile));
+    }
     
     setTimeout(() => {
       setIsSaving(false);
@@ -180,23 +209,39 @@ export default function ProfileEditPage() {
           ✕
         </button>
         <div style={{ color: themeColor, fontWeight: "bold" }}>マイページ</div>
-        <button
-          onClick={handleSave}
-          disabled={isSaving}
-          style={{
-            background: isSaving ? `${themeColor}4d` : `linear-gradient(135deg, ${themeColor}bf, ${themeColor}a6)`,
-            border: `1px solid ${themeColor}80`,
-            color: backgroundColor === "light" ? themeColor : "white",
-            padding: "8px 12px",
-            borderRadius: 6,
-            cursor: isSaving ? "not-allowed" : "pointer",
-            fontSize: 14,
-            fontWeight: 600,
-            boxShadow: `0 0 16px ${themeColor}4d, inset 0 1px 0 ${themeColor}26`,
-          }}
-        >
-          {isSaving ? "保存中..." : "保存"}
-        </button>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <button
+            onClick={() => router.push("/settings")}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: themeColor,
+              cursor: "pointer",
+              fontSize: 20,
+              padding: "4px 8px",
+            }}
+            title="管理ページ"
+          >
+            ⚙
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            style={{
+              background: isSaving ? `${themeColor}4d` : `linear-gradient(135deg, ${themeColor}bf, ${themeColor}a6)`,
+              border: `1px solid ${themeColor}80`,
+              color: backgroundColor === "light" ? themeColor : "white",
+              padding: "8px 12px",
+              borderRadius: 6,
+              cursor: isSaving ? "not-allowed" : "pointer",
+              fontSize: 14,
+              fontWeight: 600,
+              boxShadow: `0 0 16px ${themeColor}4d, inset 0 1px 0 ${themeColor}26`,
+            }}
+          >
+            {isSaving ? "保存中..." : "保存"}
+          </button>
+        </div>
       </div>
 
       {/* コンテンツ */}
@@ -478,8 +523,23 @@ export default function ProfileEditPage() {
               textAlign: "center",
             }}
           >
-            <div style={{ fontSize: 48, marginBottom: 8, color: themeColor }}>
-              {profile.avatar}
+            <div style={{ fontSize: 48, marginBottom: 8, color: themeColor, display: "flex", justifyContent: "center", alignItems: "center", height: 64 }}>
+              {profile.avatar && !avatarEmojis.includes(profile.avatar) ? (
+                <img
+                  src={profile.avatar}
+                  alt="アバター画像"
+                  style={{
+                    width: 64,
+                    height: 64,
+                    objectFit: "cover",
+                    borderRadius: "50%",
+                    border: `2px solid ${themeColor}`,
+                    background: "#fff",
+                  }}
+                />
+              ) : (
+                profile.avatar
+              )}
             </div>
             <div style={{ fontSize: 16, fontWeight: "bold", marginBottom: 4, color: "rgba(255,240,255,.95)" }}>
               {profile.username || "（未設定）"}

@@ -1,235 +1,24 @@
 "use client";
-
-import { useEffect, useRef, useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-
 type VideoRow = {
   id: string;
-  user_id: string | null;
-  title: string | null;
-  description?: string;
+  user_id: string;
+  title: string;
+  description: string;
   video_url: string;
   created_at: string;
-  aiScore?: number;
-  musicId?: string;
+  aiScore: number;
+  musicId: string;
+  isSponsor?: boolean;
+  sponsorLabel?: string;
+  sponsorCta?: string;
+  sponsorUrl?: string;
 };
 
-type CommentRow = {
-  id: string;
-  video_id: string;
-  user_id: string | null;
-  text: string;
-  created_at: string;
-};
+function FeedPage() {
+  // ...existing state, refs, etc...
 
-export default function FeedPage() {
-  const router = useRouter();
-
-  const [videos, setVideos] = useState<VideoRow[]>([]);
-  const [ready, setReady] = useState(false);
-  const [activeTab, setActiveTab] = useState<"recommended" | "trending">("recommended");
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [profileAvatar, setProfileAvatar] = useState<string>("👤");
-  const [userProfile, setUserProfile] = useState<{ username: string; bio: string; avatar: string }>({
-    username: "ユーザー",
-    bio: "プロフィール",
-    avatar: "👤",
-  });
-  const [themeColor, setThemeColor] = useState<string>("#ff1493");
-  const [backgroundColor, setBackgroundColor] = useState<"dark" | "light">("dark");
-
-  const [me, setMe] = useState<string | null>(null);
-
-  const [likeCount, setLikeCount] = useState<Record<string, number>>({});
-  const [liked, setLiked] = useState<Record<string, boolean>>({});
-  const [saved, setSaved] = useState<Record<string, boolean>>({});
-  const [descExpanded, setDescExpanded] = useState<Record<string, boolean>>({});
-
-  const [commentCount, setCommentCount] = useState<Record<string, number>>({});
-  const [openCommentsFor, setOpenCommentsFor] = useState<string | null>(null);
-  const [comments, setComments] = useState<CommentRow[]>([]);
-  const [commentText, setCommentText] = useState("");
-
-  const videoRefs = useRef<Record<string, HTMLVideoElement | null>>({});
-  const observerRef = useRef<IntersectionObserver | null>(null);
-  const touchStartY = useRef<number | null>(null);
-  const touchLastY = useRef<number | null>(null);
-  const lastWheelAt = useRef<number>(0);
-
-  const formatTimeHM = (iso: string) => {
-    try {
-      const d = new Date(iso);
-      if (isNaN(d.getTime())) return "";
-      const hh = String(d.getHours()).padStart(2, "0");
-      const mm = String(d.getMinutes()).padStart(2, "0");
-      return `${hh}:${mm}`;
-    } catch {
-      return "";
-    }
-  };
-
-  useEffect(() => {
-    const loadSettings = () => {
-      // テーマ設定を取得
-      const savedSettings = localStorage.getItem("appSettings");
-      const settings = savedSettings ? JSON.parse(savedSettings) : {};
-      const color = settings.themeColor || "pink";
-      const bgColor = settings.backgroundColor || "dark";
-      
-      const themeMap: Record<string, string> = {
-        pink: "#ff1493",
-        blue: "#64b5f6",
-        green: "#81c784",
-        purple: "#9d4edd",
-      };
-      
-      setThemeColor(themeMap[color] || "#ff1493");
-      setBackgroundColor(bgColor);
-
-      // プロフィールのアバター取得
-      try {
-        const savedProfile = localStorage.getItem("userProfile");
-        if (savedProfile) {
-          const parsed = JSON.parse(savedProfile);
-          if (parsed?.avatar) setProfileAvatar(parsed.avatar);
-          setUserProfile(parsed);
-        }
-      } catch {}
-    };
-
-    loadSettings();
-
-    // カスタムイベント "themeChanged" をリッスンして設定変更を監視
-    const handleThemeChange = (e: Event) => {
-      const customEvent = e as CustomEvent;
-      if (customEvent.detail) {
-        const color = customEvent.detail.themeColor || "pink";
-        const bgColor = customEvent.detail.backgroundColor || "dark";
-        
-        const themeMap: Record<string, string> = {
-          pink: "#ff1493",
-          blue: "#64b5f6",
-          green: "#81c784",
-          purple: "#9d4edd",
-        };
-        
-        setThemeColor(themeMap[color] || "#ff1493");
-        setBackgroundColor(bgColor);
-      }
-    };
-    
-    window.addEventListener("themeChanged", handleThemeChange);
-    return () => window.removeEventListener("themeChanged", handleThemeChange);
-  }, []);
-
-  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
-    touchStartY.current = e.touches[0].clientY;
-    touchLastY.current = e.touches[0].clientY;
-  };
-
-  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-    touchLastY.current = e.touches[0].clientY;
-  };
-
-  const handleTouchEnd = () => {
-    const start = touchStartY.current;
-    const last = touchLastY.current;
-    if (start == null || last == null) return;
-    const delta = last - start; // 上にスライドで負方向
-    const threshold = 50;
-    if (delta < -threshold) {
-      setCurrentIndex((i) => (sortedVideos.length ? (i + 1) % sortedVideos.length : 0));
-    } else if (delta > threshold) {
-      setCurrentIndex((i) => (sortedVideos.length ? (i - 1 + sortedVideos.length) % sortedVideos.length : 0));
-    }
-    touchStartY.current = null;
-    touchLastY.current = null;
-  };
-
-  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
-    const now = Date.now();
-    if (now - lastWheelAt.current < 250) return; // throttle
-    lastWheelAt.current = now;
-
-    const threshold = 10; // wheelは小さい値で連発するため低めに
-    if (e.deltaY > threshold) {
-      setCurrentIndex((i) => (videos.length ? (i + 1) % videos.length : 0));
-    } else if (e.deltaY < -threshold) {
-      setCurrentIndex((i) => (videos.length ? (i - 1 + videos.length) % videos.length : 0));
-    }
-  };
-
-  useEffect(() => {
-    const sorted = activeTab === "trending"
-      ? [...videos].sort((a, b) => {
-          const scoreA = (likeCount[a.id] || 0) + (commentCount[a.id] || 0) * 2;
-          const scoreB = (likeCount[b.id] || 0) + (commentCount[b.id] || 0) * 2;
-          return scoreB - scoreA;
-        })
-      : videos;
-
-    const current = sorted[currentIndex];
-    if (!current) return;
-    const el = videoRefs.current[current.id];
-    if (el) {
-      Object.values(videoRefs.current).forEach((v) => {
-        try { v?.pause(); } catch {}
-      });
-      el.play().catch(() => {});
-    }
-  }, [currentIndex, activeTab, videos.length]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const run = async () => {
-      // テスト用：認証をスキップ
-      setMe(null);
-
-      // ローカルストレージからモックデータを取得
-      const mockVideos = localStorage.getItem("mockVideos");
-      const mockData = mockVideos ? JSON.parse(mockVideos) : getDefaultMockVideos();
-      
-      const list = mockData as VideoRow[];
-      if (cancelled) return;
-
-      setVideos(list);
-      setReady(true);
-
-      await refreshAllMeta(list, "");
-      if (cancelled) return;
-
-      if (observerRef.current) observerRef.current.disconnect();
-      observerRef.current = new IntersectionObserver(
-        (entries) => {
-          entries.forEach((entry) => {
-            const el = entry.target as HTMLVideoElement;
-            if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
-              el.play().catch(() => {});
-            } else {
-              el.pause();
-            }
-          });
-        },
-        { threshold: [0, 0.6, 1] }
-      );
-
-      requestAnimationFrame(() => {
-        Object.values(videoRefs.current).forEach((v) => {
-          if (v && observerRef.current) observerRef.current.observe(v);
-        });
-      });
-    };
-
-    run();
-
-    return () => {
-      cancelled = true;
-      if (observerRef.current) observerRef.current.disconnect();
-    };
-  }, [router]);
-
-  // videos が更新されたときにメタデータをリフレッシュ
   useEffect(() => {
     if (videos.length > 0) {
       refreshAllMeta(videos, me || "");
@@ -365,15 +154,6 @@ export default function FeedPage() {
     }));
   };
 
-  // タブに応じてソート
-  const sortedVideos = activeTab === "trending" 
-    ? [...videos].sort((a, b) => {
-        const scoreA = (likeCount[a.id] || 0) + (commentCount[a.id] || 0) * 2;
-        const scoreB = (likeCount[b.id] || 0) + (commentCount[b.id] || 0) * 2;
-        return scoreB - scoreA;
-      })
-    : videos;
-
   if (!ready) return <div style={{ padding: 20 }}>Loading...</div>;
 
   return (
@@ -508,158 +288,85 @@ export default function FeedPage() {
         onTouchEnd={handleTouchEnd}
         onWheel={handleWheel}
       >
-        {sortedVideos.map((v, idx) => (
-          <div
-            key={v.id}
-            style={{
-              height: "100vh",
-              position: "relative",
-              display: idx === currentIndex ? "block" : "none",
-              background: backgroundColor === "light" ? "#f8f8f8" : "transparent",
-            }}
-          >
+        {(() => {
+          const sorted = activeTab === "trending"
+            ? [...videos].sort((a, b) => {
+                const scoreA = (likeCount[a.id] || 0) + (commentCount[a.id] || 0) * 2;
+                const scoreB = (likeCount[b.id] || 0) + (commentCount[b.id] || 0) * 2;
+                return scoreB - scoreA;
+              })
+            : videos;
+
+          return sorted.map((v, idx) => (
+            <div
+              key={v.id}
+              style={{
+                height: "100vh",
+                position: "relative",
+                display: idx === currentIndex ? "block" : "none",
+                background: backgroundColor === "light" ? "#f8f8f8" : "transparent",
+              }}
+            >
             <video
               ref={(el) => {
                 videoRefs.current[v.id] = el;
-                if (el && observerRef.current) observerRef.current.observe(el);
+                if (el) {
+                  el.dataset.index = String(idx);
+                  if (observerRef.current) observerRef.current.observe(el);
+                }
               }}
               src={v.video_url}
-              autoPlay
+              autoPlay={idx === 0}
               muted
               loop
               playsInline
+              preload="auto"
               style={{ width: "100%", height: "100%", objectFit: "cover" }}
             />
 
-            {/* 左側メタ情報：ユーザー、タイトル、説明 */}
+            {/* 投稿カード下部：ユーザー名・タイトル・説明・ハッシュタグ */}
             <div
               style={{
                 position: "absolute",
                 left: 14,
                 right: 100,
                 bottom: 80,
-                color: backgroundColor === "light" ? "#333" : "white",
-                textShadow: backgroundColor === "light" ? "none" : "0 2px 10px rgba(0,0,0,.6)",
+                color: "#fff",
+                textShadow: "0 2px 10px #000a",
                 display: "flex",
                 flexDirection: "column",
-                gap: 10,
+                gap: 7,
                 zIndex: 150,
+                background: "rgba(17,24,39,0.72)",
+                borderRadius: 14,
+                padding: "14px 16px 12px 14px",
+                border: "1.5px solid rgba(255,255,255,0.08)",
+                boxShadow: "0 4px 24px #0006",
+                maxWidth: 320,
+                minWidth: 180,
+                cursor: "pointer",
+                userSelect: "text",
               }}
+              onClick={() => setDescExpanded((prev) => ({ ...prev, [v.id]: !prev[v.id] }))}
             >
-              {v.user_id && (
-                <div
-                  onClick={() => router.push(`/u/${v.user_id}`)}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 10,
-                    padding: "8px 12px",
-                    borderRadius: 14,
-                    background: "transparent",
-                    backdropFilter: "blur(12px) saturate(150%)",
-                    border: "none",
-                    boxShadow: "none",
-                    cursor: "pointer",
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 24,
-                      height: 24,
-                      borderRadius: 999,
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      background: backgroundColor === "light"
-                        ? "linear-gradient(135deg, rgba(200,200,200,.5), rgba(220,220,220,.4))"
-                        : "linear-gradient(135deg, rgba(150,50,255,.35), rgba(180,100,255,.25))",
-                      border: backgroundColor === "light"
-                        ? "1px solid rgba(100,100,100,.3)"
-                        : "1px solid rgba(200,120,255,.4)",
-                      boxShadow: backgroundColor === "light"
-                        ? "0 0 16px rgba(100,100,100,.15), inset 0 1px 0 rgba(255,255,255,.3)"
-                        : "0 0 16px rgba(200,100,255,.35), inset 0 1px 0 rgba(255,200,255,.2)",
-                      fontSize: 14,
-                    }}
-                  >
-                    {profileAvatar}
-                  </span>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: backgroundColor === "light" ? "#333" : "white" }}>@{v.user_id.slice(0, 6)}</span>
-                    <span style={{ fontSize: 10, opacity: 0.85, color: backgroundColor === "light" ? "#666" : "inherit" }}>{formatTimeHM(v.created_at)}</span>
-                  </div>
-                </div>
-              )}
-
-              <div style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.35, color: backgroundColor === "light" ? "#333" : "white" }}>
+              {/* ユーザー名 */}
+              <div style={{ fontWeight: 700, fontSize: 13, letterSpacing: 0.01, color: "#38BDF8", marginBottom: 2 }}>
+                @{v.user_id?.slice(0, 10) ?? "user"}
+              </div>
+              {/* タイトル */}
+              <div style={{ fontSize: 15, fontWeight: 800, lineHeight: 1.3, color: "#fff", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", wordWrap: "break-word" }}>
                 {v.title}
               </div>
-
+              {/* 説明（2行→タップで展開） */}
               {v.description && (
-                <div
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => setDescExpanded((p) => ({ ...p, [v.id]: !p[v.id] }))}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      setDescExpanded((p) => ({ ...p, [v.id]: !p[v.id] }));
-                    }
-                  }}
-                  style={{
-                    position: "relative",
-                    padding: "10px 12px",
-                    borderRadius: 12,
-                    border: "none",
-                    background: backgroundColor === "light" ? "rgba(200,200,200,.2)" : "transparent",
-                    backdropFilter: "blur(10px) saturate(140%)",
-                    boxShadow: "none",
-                    fontSize: 12,
-                    lineHeight: 1.45,
-                    color: backgroundColor === "light" ? "#333" : "inherit",
-                    opacity: 0.95,
-                    cursor: "pointer",
-                    overflow: "hidden",
-                    maxHeight: descExpanded[v.id] ? 200 : 68,
-                    transition: "all 0.3s ease",
-                  }}
-                >
+                <div style={{ fontSize: 12, fontWeight: 500, opacity: 0.85, lineHeight: 1.5, margin: "2px 0 0 0", color: "#A855F7", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: descExpanded[v.id] ? 8 : 2, WebkitBoxOrient: "vertical", wordWrap: "break-word", cursor: "pointer", transition: "all 0.2s" }}>
                   {v.description}
-                  {!descExpanded[v.id] && (
-                    <div
-                      style={{
-                        position: "absolute",
-                        bottom: 0,
-                        left: 0,
-                        right: 0,
-                        height: 34,
-                        background: backgroundColor === "light"
-                          ? "linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.8) 100%)"
-                          : "linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.65) 100%)",
-                        pointerEvents: "none",
-                      }}
-                    />
-                  )}
-                  <div
-                    style={{
-                      position: "absolute",
-                      right: 10,
-                      bottom: 0,
-                      padding: "2px 4px",
-                      borderRadius: 0,
-                      border: "none",
-                      background: "transparent",
-                      boxShadow: "none",
-                      fontSize: 9,
-                      fontWeight: 600,
-                      pointerEvents: "none",
-                      color: backgroundColor === "light" ? "rgba(100,100,100,.8)" : "rgba(255,255,255,.7)",
-                    }}
-                  >
-                    {descExpanded[v.id] ? "閉じる" : "もっと見る"}
-                  </div>
                 </div>
               )}
+              {/* ハッシュタグ（ダミー） */}
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#06B6D4", marginTop: 2, opacity: 0.92 }}>
+                #AIplus #Shorts #Demo
+              </div>
             </div>
 
             <div
@@ -874,13 +581,24 @@ export default function FeedPage() {
               </div>
             </div>
           </div>
-        ))}
+          ));
+        })()}
 
-        {sortedVideos.length === 0 && (
-          <div style={{ color: "white", padding: 20 }}>
-            動画がまだありません
-          </div>
-        )}
+        {(() => {
+          const sorted = activeTab === "trending"
+            ? [...videos].sort((a, b) => {
+                const scoreA = (likeCount[a.id] || 0) + (commentCount[a.id] || 0) * 2;
+                const scoreB = (likeCount[b.id] || 0) + (commentCount[b.id] || 0) * 2;
+                return scoreB - scoreA;
+              })
+            : videos;
+
+          return sorted.length === 0 ? (
+            <div style={{ color: "#333", padding: 20 }}>
+              動画がまだありません
+            </div>
+          ) : null;
+        })()}
       </div>
 
       {openCommentsFor && (
@@ -891,9 +609,7 @@ export default function FeedPage() {
             right: 0,
             bottom: 0,
             height: "55vh",
-            background: backgroundColor === "light" 
-              ? "linear-gradient(180deg, rgba(245,245,245,.98) 0%, rgba(240,240,240,.97) 100%)"
-              : "linear-gradient(180deg, rgba(20,0,40,.98) 0%, rgba(30,5,60,.97) 100%)",
+            background: "linear-gradient(180deg, rgba(245,245,245,.98) 0%, rgba(240,240,240,.97) 100%)",
             backdropFilter: "blur(20px) saturate(160%)",
             borderTop: `1px solid ${backgroundColor === "light" ? "rgba(0,0,0,.15)" : "rgba(200,100,255,.25)"}`,
             boxShadow: backgroundColor === "light"
@@ -941,13 +657,56 @@ export default function FeedPage() {
                 style={{
                   padding: "10px 0",
                   borderBottom: `1px solid ${themeColor}1f`,
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "flex-start",
                 }}
               >
-                <div style={{ fontSize: 12, opacity: 0.8 }}>
-                  @{c.user_id?.slice(0, 6) ?? "anon"}
+                {/* プロフィール画像 */}
+                <div
+                  onClick={() => router.push(`/u/${c.user_id}`)}
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: "50%",
+                    background: "#" + (c.user_id?.slice(0, 6) || "cccccc"),
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "white",
+                    fontSize: 14,
+                    cursor: "pointer",
+                    flexShrink: 0,
+                  }}
+                  title={c.user_id || "anonymous"}
+                >
+                  👤
                 </div>
-                <div style={{ fontSize: 14, whiteSpace: "pre-wrap" }}>
-                  {c.text}
+                
+                {/* コメント内容 */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    onClick={() => router.push(`/u/${c.user_id}`)}
+                    style={{
+                      fontSize: 12,
+                      opacity: 0.8,
+                      cursor: "pointer",
+                      color: themeColor,
+                      fontWeight: 600,
+                      transition: "opacity 0.2s",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.opacity = "1";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.opacity = "0.8";
+                    }}
+                  >
+                    @{c.user_id?.slice(0, 6) ?? "anon"}
+                  </div>
+                  <div style={{ fontSize: 14, whiteSpace: "pre-wrap", marginTop: 4 }}>
+                    {c.text}
+                  </div>
                 </div>
               </div>
             ))}
@@ -1000,26 +759,52 @@ export default function FeedPage() {
 }
 
 function getDefaultMockVideos(): VideoRow[] {
-  return [
+  // 通常動画3件＋スポンサー投稿1件（2番目に挿入）
+  const videos: VideoRow[] = [
     {
       id: "1",
       user_id: "user-demo-1",
-      title: "AI＋デモ：縦型フィード",
-      description: "縦スクロール風レイアウトのサンプルです。",
-      video_url: "https://commondatastorage.googleapis.com/gtv-videos-library/sample/big_buck_bunny.mp4",
+      title: "AI+サンプル動画 #1",
+      description: "動画投稿のサンプルです。",
+      video_url: "/videos/v1.mp4",
       created_at: new Date(Date.now() - 1000000).toISOString(),
-      aiScore: 90,
+      aiScore: 92,
       musicId: "song-1",
+    },
+    {
+      id: "sponsor-1",
+      user_id: "sponsor-ai",
+      title: "【PR】AIクリエイター向け最強PC！",
+      description: "AI動画編集・生成AIに最適化。今だけ限定特価＆豪華特典付き。\n\n▶ 詳細は公式サイトへ！",
+      video_url: "/videos/sponsor.mp4",
+      created_at: new Date(Date.now() - 1500000).toISOString(),
+      aiScore: 99,
+      musicId: "sponsor-song",
+      isSponsor: true,
+      sponsorLabel: "Sponsored",
+      sponsorCta: "公式サイトで見る",
+      sponsorUrl: "https://aiplus-pc.example.com/",
     },
     {
       id: "2",
       user_id: "user-demo-2",
-      title: "TikTok風UI実装",
-      description: "UIコンポーネントと動画再生の簡易デモ。",
-      video_url: "https://commondatastorage.googleapis.com/gtv-videos-library/sample/elephant-dream.mp4",
+      title: "AI+サンプル動画 #2",
+      description: "動画再生のテストです。",
+      video_url: "/videos/v2.mp4",
       created_at: new Date(Date.now() - 2000000).toISOString(),
+      aiScore: 88,
+      musicId: "song-2",
+    },
+    {
+      id: "3",
+      user_id: "user-demo-3",
+      title: "AI+サンプル動画 #3",
+      description: "縦型フィードのデモです。",
+      video_url: "/videos/v3.mp4",
+      created_at: new Date(Date.now() - 3000000).toISOString(),
       aiScore: 85,
       musicId: "song-3",
     },
   ];
+  return videos;
 }

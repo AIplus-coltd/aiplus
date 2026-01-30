@@ -36,7 +36,7 @@ export default function Splash() {
       <div style={{ textAlign: "center" }}>
         <div style={{ marginBottom: 16 }}>
           <img
-            src="/logo/ai-plus.png"
+            src="/logo/logo.svg"
             alt="AI+"
             style={{ width: 160, height: 160, objectFit: "contain", filter: "drop-shadow(0 8px 24px rgba(0,160,255,.35))" }}
             onError={(e) => {

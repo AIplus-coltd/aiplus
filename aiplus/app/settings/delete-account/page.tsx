@@ -1,0 +1,326 @@
+﻿"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+
+export default function DeleteAccountPage() {
+  const router = useRouter();
+  const [userId, setUserId] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
+  const [themeColor, setThemeColor] = useState<string>("#2b7ba8");
+  const [backgroundColor, setBackgroundColor] = useState<"light">("light");
+
+  useEffect(() => {
+    const savedSettings = localStorage.getItem("appSettings");
+    if (savedSettings) {
+      const parsed = JSON.parse(savedSettings);
+      const themeMap: Record<string, string> = {
+        pink: "#2b7ba8",
+        blue: "#2b7ba8",
+        green: "#2b7ba8",
+        purple: "#2b7ba8",
+      };
+      setThemeColor(themeMap[parsed.themeColor] || "#2b7ba8");
+      setBackgroundColor(parsed.backgroundColor || "light");
+    }
+  }, []);
+
+  const handleDeleteAccount = () => {
+    setError("");
+
+    if (!userId || !password) {
+      setError("IDとパスワードを入力してください");
+      return;
+    }
+
+    if (!confirmDelete) {
+      setError("削除を確認するにはチェチE��ボックスをONにしてください");
+      return;
+    }
+
+    setLoading(true);
+
+    const userAuth = localStorage.getItem("userAuth");
+    if (!userAuth) {
+      setError("アカウントが見つかりません");
+      setLoading(false);
+      return;
+    }
+
+    const auth = JSON.parse(userAuth);
+    if (auth.id === userId && auth.password === password) {
+      // すべてのチE�Eタを削除
+      localStorage.removeItem("userAuth");
+      localStorage.removeItem("isLoggedIn");
+      localStorage.removeItem("autoLogin");
+      localStorage.removeItem("userProfile");
+      localStorage.removeItem("mockVideos");
+      localStorage.removeItem("savedVideos");
+      localStorage.removeItem("editorSession");
+      localStorage.removeItem("editorCutConfig");
+      localStorage.removeItem("thumbData");
+
+      setSuccess(true);
+      setTimeout(() => {
+        router.push("/login");
+      }, 2000);
+    } else {
+      setError("IDまたはパスワードが間違っています");
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        minHeight: "100vh",
+        background: "#f8f8f8",
+        color: "#333",
+      }}
+    >
+      {/* ヘッダー */}
+      <div
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 20,
+          padding: "12px 16px",
+          borderBottom: "1px solid rgba(0,0,0,.1)",
+          background: "#ffffff",
+          backdropFilter: "blur(20px) saturate(180%)",
+          boxShadow: "0 2px 16px rgba(0,0,0,.08)",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <button
+          onClick={() => router.back()}
+          style={{
+            background: "transparent",
+            border: "none",
+            color: themeColor,
+            cursor: "pointer",
+            fontSize: 20,
+            padding: 4,
+          }}
+        >
+          ↁE
+        </button>
+        <div style={{ fontSize: 16, fontWeight: "700", color: "#ff6b6b", letterSpacing: "0.02em" }}>
+          退企E
+        </div>
+        <div style={{ width: 28 }} />
+      </div>
+
+      {/* コンチE��チE*/}
+      <div style={{ flex: 1, overflow: "auto", padding: 16, paddingBottom: 100 }}>
+        {success && (
+          <div
+            style={{
+              padding: 16,
+              borderRadius: 12,
+              background: "rgba(100,200,100,.15)",
+              border: "1px solid rgba(100,200,100,.4)",
+              marginBottom: 16,
+              textAlign: "center",
+              color: "#66bb6a",
+              fontWeight: 600,
+            }}
+          >
+            ✁Eアカウントを削除しました
+          </div>
+        )}
+
+        {!success && (
+          <>
+            {/* 警呁E*/}
+            <div
+              style={{
+                padding: 16,
+                borderRadius: 12,
+                background: "rgba(255,0,0,.08)",
+                border: "1px solid rgba(255,0,0,.4)",
+                marginBottom: 24,
+              }}
+            >
+              <div style={{ fontSize: 14, fontWeight: 600, color: "#ff6b6b", marginBottom: 8 }}>
+                ⚠�E�E重要な警呁E
+              </div>
+              <div style={{ fontSize: 12, opacity: 0.9, lineHeight: 1.7 }}>
+                • こ�Eアカウントと関連するすべてのチE�Eタが削除されまぁE
+                <br />
+                • 投稿した動画、�Eロフィール惁E��、保存済み動画などすべて消去されまぁE
+                <br />
+                • こ�E操作�E取り消せません
+                <br />
+                • 本当に退会される場合�Eみ、以下�E惁E��を�E力してください
+              </div>
+            </div>
+
+            {error && (
+              <div
+                style={{
+                  padding: 12,
+                  borderRadius: 8,
+                  background: "rgba(255,0,0,.1)",
+                  border: "1px solid rgba(255,0,0,.3)",
+                  color: "#ff6b6b",
+                  fontSize: 13,
+                  marginBottom: 16,
+                  textAlign: "center",
+                }}
+              >
+                {error}
+              </div>
+            )}
+
+            {/* ID入劁E*/}
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: "block" }}>
+                ユーザーID
+              </label>
+              <input
+                type="text"
+                value={userId}
+                onChange={(e) => setUserId(e.target.value)}
+                placeholder="user123"
+                disabled={loading}
+                style={{
+                  width: "100%",
+                  padding: 12,
+                  borderRadius: 8,
+                  border: backgroundColor === "light"
+                    ? "1px solid rgba(0,0,0,.1)"
+                    : `1px solid ${themeColor}33`,
+                  background: backgroundColor === "light" ? "#ffffff" : "rgba(26,10,40,.6)",
+                  color: backgroundColor === "light" ? "#333" : "white",
+                  fontSize: 14,
+                  outline: "none",
+                  opacity: loading ? 0.6 : 1,
+                }}
+              />
+            </div>
+
+            {/* パスワード�E劁E*/}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: "block" }}>
+                パスワーチE
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                disabled={loading}
+                style={{
+                  width: "100%",
+                  padding: 12,
+                  borderRadius: 8,
+                  border: backgroundColor === "light"
+                    ? "1px solid rgba(0,0,0,.1)"
+                    : `1px solid ${themeColor}33`,
+                  background: backgroundColor === "light" ? "#ffffff" : "rgba(26,10,40,.6)",
+                  color: backgroundColor === "light" ? "#333" : "white",
+                  fontSize: 14,
+                  outline: "none",
+                  opacity: loading ? 0.6 : 1,
+                }}
+              />
+            </div>
+
+            {/* 削除確認チェチE�� */}
+            <div
+              style={{
+                padding: 12,
+                borderRadius: 8,
+                background: "#ffffff",
+                border: "1px solid rgba(0,0,0,.1)",
+                marginBottom: 24,
+              }}
+            >
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 8,
+                  cursor: "pointer",
+                  fontSize: 13,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={confirmDelete}
+                  onChange={(e) => setConfirmDelete(e.target.checked)}
+                  disabled={loading}
+                  style={{
+                    width: 18,
+                    height: 18,
+                    cursor: "pointer",
+                    accentColor: "#ff6b6b",
+                    marginTop: 2,
+                    flexShrink: 0,
+                  }}
+                />
+                <span style={{ lineHeight: 1.5 }}>
+                  アカウントと関連するすべてのチE�Eタが削除されることを理解し、E��会に同意しまぁE
+                </span>
+              </label>
+            </div>
+
+            {/* 削除ボタン */}
+            <button
+              onClick={handleDeleteAccount}
+              disabled={loading || !confirmDelete}
+              style={{
+                width: "100%",
+                padding: 14,
+                borderRadius: 10,
+                border: "1px solid rgba(255,0,0,.5)",
+                background: "linear-gradient(135deg, rgba(255,0,0,.2), rgba(255,0,0,.1))",
+                color: "#ff6b6b",
+                fontSize: 15,
+                cursor: loading || !confirmDelete ? "not-allowed" : "pointer",
+                fontWeight: 700,
+                boxShadow: "0 0 16px rgba(255,0,0,.2)",
+                opacity: loading || !confirmDelete ? 0.5 : 1,
+              }}
+            >
+              {loading ? "削除中..." : "アカウントを削除"}
+            </button>
+
+            {/* キャンセル */}
+            <button
+              onClick={() => router.back()}
+              disabled={loading}
+              style={{
+                width: "100%",
+                padding: 12,
+                borderRadius: 10,
+                border: backgroundColor === "light"
+                  ? "1px solid rgba(0,0,0,.1)"
+                  : `1px solid ${themeColor}33`,
+                background: "transparent",
+                color: backgroundColor === "light" ? "#333" : "white",
+                fontSize: 14,
+                cursor: loading ? "not-allowed" : "pointer",
+                fontWeight: 600,
+                marginTop: 12,
+                opacity: loading ? 0.6 : 1,
+              }}
+            >
+              キャンセル
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+

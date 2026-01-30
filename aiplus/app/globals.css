@@ -1,14 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0a0014;
-  --foreground: #f0f0f0;
-  --theme-primary: #ff1493;
-  --theme-light: #ff69b4;
-  --theme-dark: #c71585;
-  --bg-primary: #0a0014;
-  --bg-secondary: #0f0519;
-  --text-primary: #ffffff;
+  --background: #ffffff;
+  --foreground: #1f2933;
+  --theme-primary: #2b7ba8;
+  --theme-light: #3c8ec4;
+  --theme-dark: #1f5f88;
+  --bg-primary: #ffffff;
+  --bg-secondary: #ffffff;
+  --text-primary: #1f2933;
 }
 
 @theme inline {
@@ -20,16 +20,20 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0014;
-    --foreground: #f0f0f0;
+    --background: #ffffff;
+    --foreground: #1f2933;
   }
 }
 
 body {
-  background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 50%, rgba(26, 10, 40, 0.96) 100%);
-  background-attachment: fixed;
+  background: #ffffff;
   color: var(--foreground);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+}
+
+html, body, #__next {
+  background: #ffffff !important;
+  color: #1f2933 !important;
 }
 .fab {
   position: fixed;

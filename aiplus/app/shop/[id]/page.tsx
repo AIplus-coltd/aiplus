@@ -54,14 +54,14 @@ export default function ProductDetailPage() {
 
   if (!product) {
     return (
-      <div style={{ padding: 20, color: "white", background: "black", minHeight: "100vh" }}>
+      <div style={{ padding: 20, color: "#333", background: "#ffffff", minHeight: "100vh" }}>
         商品が見つかりません
       </div>
     );
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "black", color: "white" }}>
+    <div style={{ minHeight: "100vh", background: "#ffffff", color: "#333" }}>
       {/* ヘッダー */}
       <div
         style={{
@@ -69,8 +69,8 @@ export default function ProductDetailPage() {
           top: 0,
           zIndex: 10,
           padding: "12px 16px",
-          borderBottom: "1px solid rgba(255,255,255,.12)",
-          background: "rgba(0,0,0,.9)",
+          borderBottom: "1px solid rgba(0,0,0,.1)",
+          background: "#ffffff",
           backdropFilter: "blur(8px)",
           display: "flex",
           alignItems: "center",

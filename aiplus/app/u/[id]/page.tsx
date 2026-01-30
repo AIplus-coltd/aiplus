@@ -60,10 +60,10 @@ export default function UserPage() {
     setFollowerCount((prev) => (isFollowing ? prev - 1 : prev + 1));
   };
 
-  if (!ready) return <div style={{ padding: 20, color: "white" }}>Loading...</div>;
+  if (!ready) return <div style={{ padding: 20, color: "#333" }}>Loading...</div>;
 
   return (
-    <div style={{ minHeight: "100vh", background: "black", color: "white" }}>
+    <div style={{ minHeight: "100vh", background: "#ffffff", color: "#333" }}>
       {/* ヘッダー */}
       <div
         style={{
@@ -71,8 +71,8 @@ export default function UserPage() {
           top: 0,
           zIndex: 10,
           padding: "12px 14px",
-          borderBottom: "1px solid rgba(255,255,255,.12)",
-          background: "rgba(0,0,0,.85)",
+          borderBottom: "1px solid rgba(0,0,0,.1)",
+          background: "#ffffff",
           backdropFilter: "blur(6px)",
           display: "flex",
           alignItems: "center",
