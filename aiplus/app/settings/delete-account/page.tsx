@@ -29,7 +29,7 @@ export default function DeleteAccountPage() {
     }
   }, []);
 
-  const handleDeleteAccount = () => {
+  const handleDeleteAccount = async () => {
     setError("");
 
     if (!userId || !password) {
@@ -38,38 +38,35 @@ export default function DeleteAccountPage() {
     }
 
     if (!confirmDelete) {
-      setError("削除を確認するにはチェチE��ボックスをONにしてください");
+      setError("削除を確認するにはチェックボックスをONにしてください");
       return;
     }
 
     setLoading(true);
 
-    const userAuth = localStorage.getItem("userAuth");
-    if (!userAuth) {
-      setError("アカウントが見つかりません");
-      setLoading(false);
-      return;
-    }
+    try {
+      const res = await fetch("/api/auth/delete-account", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data?.error || "退会に失敗しました");
+        setLoading(false);
+        return;
+      }
 
-    const auth = JSON.parse(userAuth);
-    if (auth.id === userId && auth.password === password) {
-      // すべてのチE�Eタを削除
-      localStorage.removeItem("userAuth");
-      localStorage.removeItem("isLoggedIn");
-      localStorage.removeItem("autoLogin");
-      localStorage.removeItem("userProfile");
-      localStorage.removeItem("mockVideos");
-      localStorage.removeItem("savedVideos");
-      localStorage.removeItem("editorSession");
-      localStorage.removeItem("editorCutConfig");
-      localStorage.removeItem("thumbData");
+      localStorage.removeItem("currentUser");
+      localStorage.removeItem("autoLoginUserId");
+      sessionStorage.removeItem("currentUser");
 
       setSuccess(true);
       setTimeout(() => {
         router.push("/login");
       }, 2000);
-    } else {
-      setError("IDまたはパスワードが間違っています");
+    } catch {
+      setError("退会に失敗しました");
       setLoading(false);
     }
   };
@@ -111,15 +108,15 @@ export default function DeleteAccountPage() {
             padding: 4,
           }}
         >
-          ↁE
+          ←
         </button>
         <div style={{ fontSize: 16, fontWeight: "700", color: "#ff6b6b", letterSpacing: "0.02em" }}>
-          退企E
+          退会
         </div>
         <div style={{ width: 28 }} />
       </div>
 
-      {/* コンチE��チE*/}
+      {/* コンテンツ */}
       <div style={{ flex: 1, overflow: "auto", padding: 16, paddingBottom: 100 }}>
         {success && (
           <div
@@ -134,13 +131,13 @@ export default function DeleteAccountPage() {
               fontWeight: 600,
             }}
           >
-            ✁Eアカウントを削除しました
+            ✨ 退会手続きが完了しました（30日以内は復旧可能）
           </div>
         )}
 
         {!success && (
           <>
-            {/* 警呁E*/}
+            {/* 警告 */}
             <div
               style={{
                 padding: 16,
@@ -151,37 +148,36 @@ export default function DeleteAccountPage() {
               }}
             >
               <div style={{ fontSize: 14, fontWeight: 600, color: "#ff6b6b", marginBottom: 8 }}>
-                ⚠�E�E重要な警呁E
+                ⚠️ 重要な警告
               </div>
               <div style={{ fontSize: 12, opacity: 0.9, lineHeight: 1.7 }}>
-                • こ�Eアカウントと関連するすべてのチE�Eタが削除されまぁE
-                <br />
-                • 投稿した動画、�Eロフィール惁E��、保存済み動画などすべて消去されまぁE
-                <br />
-                • こ�E操作�E取り消せません
-                <br />
-                • 本当に退会される場合�Eみ、以下�E惁E��を�E力してください
+                • 退会後30日間は復旧可能です（30日後に完全削除）<br />
+                • 投稿した動画、プロフィール情報、保存済み動画などは30日後に削除されます<br />
+                • 本当に退会される場合のみ、以下の情報を入力してください
               </div>
             </div>
 
-            {error && (
-              <div
+            {/* ID設定ボタン */}
+            <div style={{ marginBottom: 8 }}>
+              <button
+                onClick={() => router.push("/tabs/me/view")}
                 style={{
-                  padding: 12,
+                  padding: "8px 16px",
                   borderRadius: 8,
-                  background: "rgba(255,0,0,.1)",
-                  border: "1px solid rgba(255,0,0,.3)",
-                  color: "#ff6b6b",
+                  border: `1px solid ${themeColor}`,
+                  background: `linear-gradient(135deg, ${themeColor}22, #fff)`,
+                  color: themeColor,
+                  fontWeight: 600,
                   fontSize: 13,
-                  marginBottom: 16,
-                  textAlign: "center",
+                  cursor: "pointer",
+                  marginBottom: 4,
                 }}
               >
-                {error}
-              </div>
-            )}
+                ID設定・プロフィール編集はこちら
+              </button>
+            </div>
 
-            {/* ID入劁E*/}
+            {/* ID入力 */}
             <div style={{ marginBottom: 16 }}>
               <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: "block" }}>
                 ユーザーID
@@ -208,10 +204,10 @@ export default function DeleteAccountPage() {
               />
             </div>
 
-            {/* パスワード�E劁E*/}
+            {/* パスワード入力 */}
             <div style={{ marginBottom: 20 }}>
               <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: "block" }}>
-                パスワーチE
+                パスワード
               </label>
               <input
                 type="password"
@@ -235,7 +231,7 @@ export default function DeleteAccountPage() {
               />
             </div>
 
-            {/* 削除確認チェチE�� */}
+            {/* 削除確認チェックボックス */}
             <div
               style={{
                 padding: 12,
@@ -269,7 +265,7 @@ export default function DeleteAccountPage() {
                   }}
                 />
                 <span style={{ lineHeight: 1.5 }}>
-                  アカウントと関連するすべてのチE�Eタが削除されることを理解し、E��会に同意しまぁE
+                  アカウントと関連するすべてのデータが削除されることを理解し、退会に同意します
                 </span>
               </label>
             </div>

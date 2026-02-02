@@ -10,6 +10,7 @@ type Product = {
   image: string;
   description: string;
   category: string;
+  sellerName?: string;
 };
 
 function getDefaultProducts(): Product[] {
@@ -31,6 +32,13 @@ export default function ShopPage() {
   const [cartCount, setCartCount] = useState(0);
   const [themeColor, setThemeColor] = useState<string>("#ff1493");
   const [backgroundColor, setBackgroundColor] = useState<"dark" | "light">("dark");
+  // 投稿モーダル用
+  const [showPostModal, setShowPostModal] = useState(false);
+  const [postName, setPostName] = useState("");
+  const [postPrice, setPostPrice] = useState("");
+  const [postDesc, setPostDesc] = useState("");
+  const [postCategory, setPostCategory] = useState("");
+  const [postImage, setPostImage] = useState("");
 
   useEffect(() => {
     const loadSettings = () => {
@@ -50,9 +58,18 @@ export default function ShopPage() {
 
     const loadProducts = () => {
       const productsData = localStorage.getItem("shopProducts");
-      const productList = productsData ? JSON.parse(productsData) : getDefaultProducts();
+      const myProducts = localStorage.getItem("myProducts");
+      
+      let productList = productsData ? JSON.parse(productsData) : getDefaultProducts();
+      
+      // マイ出品商品をシステム商品と統合
+      if (myProducts) {
+        const myProds = JSON.parse(myProducts);
+        productList = [...myProds, ...productList];
+      }
+      
       if (!productsData) {
-        localStorage.setItem("shopProducts", JSON.stringify(productList));
+        localStorage.setItem("shopProducts", JSON.stringify(getDefaultProducts()));
       }
       setProducts(productList);
 
@@ -83,6 +100,32 @@ export default function ShopPage() {
     window.addEventListener("themeChanged", handleThemeChange);
     return () => window.removeEventListener("themeChanged", handleThemeChange);
   }, []);
+
+  // 投稿処理
+  const handlePostProduct = () => {
+    if (!postName.trim() || !postPrice.trim() || isNaN(Number(postPrice))) return;
+    // グラデーション色欄が空欄や不正な場合はデフォルト値
+    let grad = postImage && /#[0-9a-fA-F]{3,6},\s*#[0-9a-fA-F]{3,6}/.test(postImage)
+      ? postImage
+      : "#f093fb, #f5576c";
+    const newProduct: Product = {
+      id: "user-" + Date.now() + Math.random().toString(36),
+      name: postName,
+      price: Number(postPrice),
+      image: grad,
+      description: postDesc,
+      category: postCategory || "その他",
+    };
+    const updated = [newProduct, ...products];
+    setProducts(updated);
+    localStorage.setItem("shopProducts", JSON.stringify(updated));
+    setShowPostModal(false);
+    setPostName(""); setPostPrice(""); setPostDesc(""); setPostCategory(""); setPostImage("");
+    // 投稿後に詳細ページへ遷移
+    setTimeout(() => {
+      router.push(`/shop/${newProduct.id}`);
+    }, 100);
+  };
 
   return (
     <div
@@ -115,53 +158,104 @@ export default function ShopPage() {
         }}
       >
         <div style={{ fontSize: 20, fontWeight: "bold", color: themeColor, letterSpacing: "0.02em" }}>Shop</div>
-        <button
-          onClick={() => router.push("/cart")}
+        <div style={{ display: "flex", gap: 10 }}>
+          <button
+            onClick={() => router.push("/cart")}
+            style={{
+              position: "relative",
+              padding: "6px 12px",
+              borderRadius: 20,
+              border: "none",
+              background: `linear-gradient(135deg, ${themeColor}66, ${themeColor}4d)` ,
+              color: "#ffffff",
+              cursor: "pointer",
+              fontSize: 14,
+              fontWeight: "600",
+              boxShadow: `0 0 16px ${themeColor}33`,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 4h2l2 12h10l2-8H7" />
+              <circle cx="9" cy="20" r="2" />
+              <circle cx="17" cy="20" r="2" />
+            </svg>
+            {cartCount > 0 && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: -6,
+                  right: -6,
+                  background: `linear-gradient(135deg, ${themeColor}, ${themeColor}cc)` ,
+                  borderRadius: "50%",
+                  width: 20,
+                  height: 20,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 11,
+                  fontWeight: "bold",
+                  color: "white",
+                  boxShadow: `0 0 12px ${themeColor}66`,
+                }}
+              >
+                {cartCount}
+              </div>
+            )}
+          </button>
+        </div>
+      </div>
+      {/* 投稿モーダル */}
+      {showPostModal && (
+        <div
           style={{
-            position: "relative",
-            padding: "6px 12px",
-            borderRadius: 20,
-            border: "none",
-            background: `linear-gradient(135deg, ${themeColor}66, ${themeColor}4d)`,
-            color: "#ffffff",
-            cursor: "pointer",
-            fontSize: 14,
-            fontWeight: "600",
-            boxShadow: `0 0 16px ${themeColor}33`,
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,.85)",
+            backdropFilter: "blur(12px)",
             display: "flex",
             alignItems: "center",
-            gap: 6,
+            justifyContent: "center",
+            zIndex: 400,
           }}
+          onClick={() => setShowPostModal(false)}
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 4h2l2 12h10l2-8H7" />
-            <circle cx="9" cy="20" r="2" />
-            <circle cx="17" cy="20" r="2" />
-          </svg>
-          {cartCount > 0 && (
-            <div
-              style={{
-                position: "absolute",
-                top: -6,
-                right: -6,
-                background: `linear-gradient(135deg, ${themeColor}, ${themeColor}cc)`,
-                borderRadius: "50%",
-                width: 20,
-                height: 20,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 11,
-                fontWeight: "bold",
-                color: "white",
-                boxShadow: `0 0 12px ${themeColor}66`,
-              }}
-            >
-              {cartCount}
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: "95%",
+              maxWidth: 420,
+              padding: 24,
+              borderRadius: 18,
+              background: backgroundColor === "light"
+                ? `linear-gradient(135deg, #fff, ${themeColor}0f)`
+                : `linear-gradient(135deg, ${themeColor}26, ${themeColor}14)` ,
+              border: backgroundColor === "light" ? `1px solid ${themeColor}33` : `1px solid ${themeColor}55`,
+              boxShadow: backgroundColor === "light"
+                ? "0 12px 48px rgba(0,0,0,.12), 0 0 40px rgba(0,0,0,.08)"
+                : `0 8px 40px rgba(0,0,0,.6), 0 0 60px ${themeColor}33`,
+            }}
+          >
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 18, color: themeColor }}>商品を投稿</div>
+            <div style={{ marginBottom: 12 }}>
+              <input value={postName} onChange={e => setPostName(e.target.value)} placeholder="商品名" style={{ width: "100%", padding: 10, borderRadius: 8, border: `1px solid ${themeColor}55`, marginBottom: 8, fontSize: 14 }} />
+              <input value={postPrice} onChange={e => setPostPrice(e.target.value.replace(/[^0-9]/g, ""))} placeholder="価格 (円)" style={{ width: "100%", padding: 10, borderRadius: 8, border: `1px solid ${themeColor}55`, marginBottom: 8, fontSize: 14 }} />
+              <input value={postCategory} onChange={e => setPostCategory(e.target.value)} placeholder="カテゴリ (例: 電子機器)" style={{ width: "100%", padding: 10, borderRadius: 8, border: `1px solid ${themeColor}55`, marginBottom: 8, fontSize: 14 }} />
+              <input value={postImage} onChange={e => setPostImage(e.target.value)} placeholder="グラデーション色 (例: #f093fb, #f5576c)" style={{ width: "100%", padding: 10, borderRadius: 8, border: `1px solid ${themeColor}55`, marginBottom: 8, fontSize: 14 }} />
+              <textarea value={postDesc} onChange={e => setPostDesc(e.target.value)} placeholder="説明" style={{ width: "100%", padding: 10, borderRadius: 8, border: `1px solid ${themeColor}55`, fontSize: 14, minHeight: 60 }} />
             </div>
-          )}
-        </button>
-      </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button onClick={() => setShowPostModal(false)} style={{ padding: "10px 20px", borderRadius: 10, border: `1px solid ${themeColor}33`, background: backgroundColor === "light" ? "#f7f7f7" : `linear-gradient(135deg, ${themeColor}10, ${themeColor}05)`, color: backgroundColor === "light" ? "#555" : `${themeColor}cc`, cursor: "pointer", fontSize: 14, fontWeight: "600" }}>キャンセル</button>
+              <button onClick={handlePostProduct} style={{ padding: "10px 20px", borderRadius: 10, border: "none", background: `linear-gradient(135deg, ${themeColor}b3, ${themeColor}80)`, color: "#fff", cursor: "pointer", fontSize: 14, fontWeight: 600 }}>投稿</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 商品グリッド */}
       <div style={{ padding: 16 }}>
@@ -259,6 +353,11 @@ export default function ShopPage() {
                 </div>
 
                 <div style={{ padding: 12 }}>
+                  {product.sellerName && (
+                    <div style={{ fontSize: 11, opacity: 0.6, marginBottom: 4 }}>
+                      出品: {product.sellerName}
+                    </div>
+                  )}
                   <div
                     style={{
                       fontSize: 13,

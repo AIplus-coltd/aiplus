@@ -1,0 +1,240 @@
+"use client";
+
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+
+type CartItem = {
+  id: string;
+  name: string;
+  price: number;
+  quantity: number;
+  image?: string;
+};
+
+export default function CartPage() {
+  const router = useRouter();
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [purchased, setPurchased] = useState(false);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("cart");
+    if (stored) setCart(JSON.parse(stored));
+  }, []);
+
+  const removeItem = (id: string) => {
+    const updatedCart = cart.filter((item) => item.id !== id);
+    setCart(updatedCart);
+    localStorage.setItem("cart", JSON.stringify(updatedCart));
+  };
+
+  const clearCart = () => {
+    setCart([]);
+    localStorage.setItem("cart", JSON.stringify([]));
+  };
+
+  const checkout = async () => {
+    if (cart.length === 0) return;
+    try {
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: cart }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (e) {
+      alert("決済ページへの遷移に失敗しました");
+    }
+  };
+
+  const updateQuantity = (id: string, delta: number) => {
+    setCart((prev) => {
+      const updated = prev.map((item) =>
+        item.id === id ? { ...item, quantity: Math.max(1, item.quantity + delta) } : item
+      );
+      localStorage.setItem("cart", JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const totalPrice = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+  // 新UI: 画面下部の安全領域・ナビ高さを考慮
+  const BOTTOM_NAV_HEIGHT = 72; // px
+  const SAFE_AREA = 16; // px
+
+  if (cart.length === 0) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#f8f8ff", color: "#333" }}>
+        <svg width="64" height="64" viewBox="0 0 24 24" aria-hidden="true" style={{ marginBottom: 16 }}>
+          <defs>
+            <linearGradient id="emptyCartGrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#5aa9ff" />
+              <stop offset="100%" stopColor="#2f7de6" />
+            </linearGradient>
+          </defs>
+          <g fill="none" stroke="url(#emptyCartGrad)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 4h2l2 12h10l2-8H7" />
+            <circle cx="9" cy="20" r="2" />
+            <circle cx="17" cy="20" r="2" />
+          </g>
+        </svg>
+        <div style={{ fontSize: 18, marginBottom: 8, fontWeight: 600 }}>カートは空です</div>
+        <button
+          onClick={() => router.push("/tabs/shop")}
+          style={{
+            marginTop: 20,
+            padding: "12px 28px",
+            borderRadius: 24,
+            border: "1.5px solid #38BDF8",
+            background: "#eaf6ff",
+            color: "#1976d2",
+            fontWeight: 600,
+            fontSize: 16,
+            cursor: "pointer",
+            boxShadow: "0 2px 12px #38BDF822",
+            transition: "all 0.2s"
+          }}
+        >
+          ショップへ戻る
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#f8f8ff", color: "#333", paddingBottom: BOTTOM_NAV_HEIGHT + SAFE_AREA + 24 }}>
+      {/* ヘッダー */}
+      <div
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 10,
+          padding: "16px 20px 12px 20px",
+          borderBottom: "1.5px solid #38BDF822",
+          background: "#fff",
+          fontWeight: 700,
+          fontSize: 18,
+          letterSpacing: "0.02em",
+          boxShadow: "0 2px 12px #38BDF822",
+        }}
+      >
+        カート
+      </div>
+
+      <div style={{ maxWidth: 430, margin: "0 auto", padding: "24px 8px 0 8px" }}>
+        {cart.map((item) => (
+          <div
+            key={item.id}
+            style={{
+              display: "flex",
+              gap: 16,
+              padding: 16,
+              border: "1.5px solid #38BDF822",
+              borderRadius: 16,
+              background: "#fff",
+              marginBottom: 18,
+              boxShadow: "0 2px 12px #38BDF822",
+              alignItems: "center"
+            }}
+          >
+            {/* 商品画像 */}
+            <div
+              style={{
+                width: 80,
+                height: 80,
+                borderRadius: 12,
+                background: item.image ? `url(${item.image}) center/cover` : "#eaf6ff",
+                flexShrink: 0,
+                border: "1.5px solid #38BDF8",
+                boxShadow: "0 2px 8px #38BDF822"
+              }}
+            />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 700, fontSize: 16 }}>{item.name}</div>
+              <div style={{ color: "#1976d2", fontWeight: "bold", fontSize: 15 }}>¥{item.price.toLocaleString()}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10 }}>
+                <button onClick={() => updateQuantity(item.id, -1)} style={{ width: 32, height: 32, borderRadius: 8, border: "1.5px solid #38BDF8", background: "#eaf6ff", color: "#1976d2", fontWeight: 700, fontSize: 18, cursor: "pointer" }}>-</button>
+                <span style={{ fontWeight: 700, fontSize: 16 }}>{item.quantity}</span>
+                <button onClick={() => updateQuantity(item.id, 1)} style={{ width: 32, height: 32, borderRadius: 8, border: "1.5px solid #38BDF8", background: "#eaf6ff", color: "#1976d2", fontWeight: 700, fontSize: 18, cursor: "pointer" }}>+</button>
+                <button onClick={() => removeItem(item.id)} style={{ marginLeft: 16, color: "#f00", fontWeight: 700, fontSize: 14, background: "none", border: "none", cursor: "pointer" }}>削除</button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* 購入ボタン（新UI: 下部ナビと絶対重ならない） */}
+      <div
+        style={{
+          position: "fixed",
+          left: 0,
+          right: 0,
+          bottom: BOTTOM_NAV_HEIGHT + SAFE_AREA,
+          zIndex: 101,
+          width: "100vw",
+          display: "flex",
+          justifyContent: "center",
+          pointerEvents: "none",
+        }}
+      >
+        <div
+          style={{
+            width: "100%",
+            maxWidth: 430,
+            margin: "0 auto",
+            padding: "18px 18px 18px 18px",
+            background: "#fff",
+            borderRadius: 18,
+            boxShadow: "0 2px 24px #38BDF822",
+            border: "1.5px solid #38BDF8",
+            pointerEvents: "auto",
+          }}
+        >
+          <div
+            style={{
+              padding: 12,
+              background: "#eaf6ff",
+              borderRadius: 12,
+              marginBottom: 12,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center"
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 13, opacity: 0.8, fontWeight: 600 }}>合計金額</div>
+              <div style={{ fontSize: 11, opacity: 0.6, marginTop: 2 }}>
+                {cart.reduce((sum, item) => sum + item.quantity, 0)} 点
+              </div>
+            </div>
+            <div style={{ fontSize: 26, fontWeight: "bold", color: "#1976d2" }}>
+              ¥{totalPrice.toLocaleString()}
+            </div>
+          </div>
+
+          <button
+            onClick={checkout}
+            style={{
+              width: "100%",
+              padding: "16px 0",
+              borderRadius: 12,
+              border: "none",
+              background: purchased ? "#38BDF8" : "#1976d2",
+              color: "white",
+              cursor: "pointer",
+              fontSize: 18,
+              fontWeight: "bold",
+              boxShadow: "0 2px 12px #38BDF822",
+              transition: "all 0.2s"
+            }}
+          >
+            {purchased ? "✓ 購入完了しました！" : "購入する"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

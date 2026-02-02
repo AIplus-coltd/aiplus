@@ -33,7 +33,7 @@ export default function RegisterPage() {
     setBackgroundColor(bgColor);
   }, []);
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     setError("");
     setLoading(true);
 
@@ -49,56 +49,42 @@ export default function RegisterPage() {
       return;
     }
 
-    if (password.length < 6) {
-      setError("パスワードは6文字以上にしてください");
+    if (password.length < 8) {
+      setError("パスワードは8文字以上で英大文字・小文字・数字を含めてください");
+      setLoading(false);
+      return;
+    }
+
+    if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/\d/.test(password)) {
+      setError("パスワードは8文字以上で英大文字・小文字・数字を含めてください");
       setLoading(false);
       return;
     }
 
     try {
-      const users = JSON.parse(localStorage.getItem("aiplus_users") || "[]");
-      if (users.some((u: any) => u.email === email)) {
-        setError("このメールアドレスは既に登録されています");
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: username,
+          email,
+          password,
+          phoneNumber,
+          birthDate,
+        }),
+      });
+
+      const data = await res.json();
+      console.log("Register response:", res.status, data);
+      if (!res.ok) {
+        setError(data?.error || "新規登録に失敗しました");
         setLoading(false);
         return;
       }
-
-      const newUser = {
-        id: "user-" + Date.now(),
-        username,
-        email,
-        phoneNumber,
-        birthDate,
-        password,
-        createdAt: new Date().toISOString(),
-      };
-
-      users.push(newUser);
-      localStorage.setItem("aiplus_users", JSON.stringify(users));
-
-      // --- ここから自動確認 ---
-      const checkUsers = JSON.parse(localStorage.getItem("aiplus_users") || "[]");
-      const found = checkUsers.find((u: any) => u.email === email && u.password === password);
-      if (!found) {
-        setError("登録後にデータが保存されていません。ブラウザの設定やストレージ容量を確認してください。");
-        setLoading(false);
-        return;
-      }
-      // --- ここまで自動確認 ---
-
-      const sessionUser = {
-        id: newUser.id,
-        email: newUser.email,
-        username: newUser.username,
-      };
-
-      // 登録直後はセッションのみでログイン（端末自動ログインは未設定）
-      sessionStorage.setItem("currentUser", JSON.stringify(sessionUser));
-      localStorage.removeItem("currentUser");
-      localStorage.removeItem("autoLoginUserId");
 
       setLoading(false);
-      router.push("/tabs/feed");
+      const query = data?.user?.userId ? `?userId=${encodeURIComponent(data.user.userId)}` : "";
+      router.push(`/verify${query}`);
     } catch (err) {
       setError("新規登録に失敗しました");
       setLoading(false);
@@ -148,7 +134,7 @@ export default function RegisterPage() {
             type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            placeholder="ユーザー名"
+            placeholder="ユーザーID（3〜20文字）"
             style={{
               padding: "12px 16px",
               borderRadius: 10,
@@ -211,7 +197,7 @@ export default function RegisterPage() {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="パスワード（6文字以上）"
+            placeholder="パスワード（8文字以上・英大文字/小文字/数字）"
             style={{
               padding: "12px 16px",
               borderRadius: 10,

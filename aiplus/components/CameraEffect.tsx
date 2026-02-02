@@ -3,8 +3,11 @@ import React, { useRef, useEffect } from "react";
 import * as THREE from "three";
 // MediaPipe FaceMesh
 // 必要に応じてnpm install @mediapipe/face_mesh @mediapipe/camera_utils @mediapipe/drawing_utils
-import { FaceMesh } from "@mediapipe/face_mesh";
-import { Camera } from "@mediapipe/camera_utils";
+// import { FaceMesh } from "@mediapipe/face_mesh"; // ←NG
+const FaceMesh = typeof window !== "undefined" ? (window as any).FaceMesh : undefined;
+// Cameraは@mediapipe/camera_utilsでグローバル登録される
+// import { Camera } from "@mediapipe/camera_utils"; // ←NG
+const Camera = typeof window !== "undefined" ? (window as any).Camera : undefined;
 
 const CameraEffect: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -17,8 +20,8 @@ const CameraEffect: React.FC = () => {
 
   useEffect(() => {
     let animationId: number;
-    let cameraUtils: Camera;
-    let faceMesh: FaceMesh;
+    let cameraUtils: any;
+    let faceMesh: any;
     let video: HTMLVideoElement | null = videoRef.current;
     let canvas: HTMLCanvasElement | null = canvasRef.current;
 
@@ -46,7 +49,7 @@ const CameraEffect: React.FC = () => {
 
     // MediaPipe FaceMesh初期化
     faceMesh = new FaceMesh({
-      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
+      locateFile: (file: any) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
     });
     faceMesh.setOptions({
       maxNumFaces: 1,
@@ -54,7 +57,7 @@ const CameraEffect: React.FC = () => {
       minDetectionConfidence: 0.5,
       minTrackingConfidence: 0.5,
     });
-    faceMesh.onResults((results) => {
+    faceMesh.onResults((results: any) => {
       if (!rendererRef.current || !sceneRef.current || !cameraRef.current || !particlesRef.current) return;
       // GPUフィルター例: ここでcanvasにWebGLフィルターを適用可能
       // パーティクル座標更新

@@ -39,7 +39,7 @@ export const metadata: Metadata = {
   creator: "AI+",
   publisher: "AI+",
   applicationName: "AI+",
-  manifest: "/manifest.webmanifest",
+  manifest: "/manifest.json",
   icons: [
     { rel: "icon", url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
     { rel: "icon", url: "/icons/icon-512x512.png", sizes: "512x512", type: "image/png" },

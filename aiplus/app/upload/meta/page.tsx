@@ -49,30 +49,29 @@ export default function MetaPage() {
       try {
         const parsed = JSON.parse(saved);
         
-        // videoUrlはCUT_CONFIG_KEYから取征EVIDEO_URL_KEYは使わなぁE
+        // videoUrlはcamera、CUT、またはsession から優先順位で取得
         const cutConfig = localStorage.getItem(CUT_CONFIG_KEY);
         const cutVideoUrl = cutConfig ? JSON.parse(cutConfig).videoUrl : null;
+        const effectiveVideoUrl = parsed.videoUrl || cutVideoUrl;
         
         console.log("loadSession: parsed session", {
           hasThumbnail: !!parsed.thumbnailDataUrl,
-          hasVideoFromCut: !!cutVideoUrl,
+          hasVideoUrl: !!effectiveVideoUrl,
           thumbnailLength: parsed.thumbnailDataUrl?.length || 0
         });
         
         // sessionにvideoUrlを追加
         const fullSession = {
           ...parsed,
-          videoUrl: cutVideoUrl || parsed.videoUrl
+          videoUrl: effectiveVideoUrl
         };
         setSession(fullSession);
         
-        if (parsed.thumbnailDataUrl) {
-          console.log("loadSession: setting thumbnailUrl from thumbnailDataUrl");
-          setThumbnailUrl(parsed.thumbnailDataUrl);
-        }
-        else if (cutVideoUrl) {
-          console.log("loadSession: setting thumbnailUrl from videoUrl");
-          setThumbnailUrl(cutVideoUrl);
+        // thumbnailDataUrl が存在する場合は使用、なければ videoUrl を使用
+        const thumbnailToUse = parsed.thumbnailDataUrl || effectiveVideoUrl;
+        if (thumbnailToUse) {
+          console.log("loadSession: setting thumbnailUrl");
+          setThumbnailUrl(thumbnailToUse);
         }
       } catch (e) {
         console.error("loadSession: parse failed", e);
@@ -94,12 +93,26 @@ export default function MetaPage() {
     setThemeColor(themeMap[color] || "#2b7ba8");
     setBackgroundColor(bgColor);
 
-    // ユーザーID初期匁E
-    let uid = localStorage.getItem(USER_ID_KEY);
-    if (!uid) {
-      uid = "user-" + Date.now() + "-" + Math.random().toString(36).slice(2);
-      localStorage.setItem(USER_ID_KEY, uid);
+    // ユーザーID初期化（ログインユーザー優先）
+    let uid: string | null = null;
+    const currentUserRaw = sessionStorage.getItem("currentUser") || localStorage.getItem("currentUser");
+    if (currentUserRaw) {
+      try {
+        const parsed = JSON.parse(currentUserRaw);
+        uid = parsed?.id || parsed?.user_id || null;
+      } catch {}
     }
+
+    if (!uid) {
+      uid = localStorage.getItem("me");
+    }
+
+    if (!uid) {
+      uid = "demo-user";
+      localStorage.setItem("me", uid);
+    }
+
+    localStorage.setItem(USER_ID_KEY, uid);
     setUserId(uid);
 
     // 初回マウント時にセチE��ョン読み込み
@@ -195,11 +208,19 @@ export default function MetaPage() {
       videos.unshift(newVideo);
       localStorage.setItem("mockVideos", JSON.stringify(videos));
 
+      // ユーザーの投稿として保存
+      if (userId) {
+        const userVideos = localStorage.getItem(`videos_${userId}`);
+        const userVideoList: VideoRow[] = userVideos ? JSON.parse(userVideos) : [];
+        userVideoList.unshift(newVideo);
+        localStorage.setItem(`videos_${userId}`, JSON.stringify(userVideoList));
+      }
+
       // SessionStorage をクリア
       localStorage.removeItem(SESSION_KEY);
 
       setLoading(false);
-      router.push("/tabs/me");
+      router.push("/tabs/me/view");
     } catch (err) {
       setLoading(false);
       setError("エラーが発生しました: " + (err as Error).message);
@@ -266,7 +287,11 @@ export default function MetaPage() {
           justifyContent: "space-between",
         }}
       >
-        <button onClick={() => router.push("/upload/editor")} style={{ background: "transparent", border: "none", color: themeColor, fontSize: 18, cursor: "pointer" }}>←</button>
+        <button onClick={() => {
+          const referrer = localStorage.getItem("metaPageReferrer") || "/upload/editor";
+          localStorage.removeItem("metaPageReferrer");
+          router.push(referrer);
+        }} style={{ background: "transparent", border: "none", color: themeColor, fontSize: 18, cursor: "pointer" }}>←</button>
         <div style={{ fontWeight: 700, color: themeColor }}>投稿情報</div>
         <div style={{ width: 24 }} />
       </div>

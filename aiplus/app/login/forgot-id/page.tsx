@@ -26,32 +26,34 @@ export default function ForgotIdPage() {
     }
   }, []);
 
-  const handleFindId = () => {
+  const handleFindId = async () => {
     setError("");
     setFoundId("");
 
     if (!phoneNumber || !birthDate) {
-      setError("電話番号と生年月日を�E力してください");
+      setError("電話番号と生年月日を入力してください");
       return;
     }
 
     setLoading(true);
 
-    const userAuth = localStorage.getItem("userAuth");
-    if (!userAuth) {
-      setError("登録惁E��が見つかりません");
-      setLoading(false);
-      return;
+    try {
+      const res = await fetch("/api/auth/forgot-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phoneNumber, birthDate }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data?.error || "入力された情報が一致しません");
+        setLoading(false);
+        return;
+      }
+      setFoundId(data.email);
+    } catch {
+      setError("入力された情報が一致しません");
     }
-
-    const auth = JSON.parse(userAuth);
-    if (auth.phoneNumber === phoneNumber && auth.birthDate === birthDate) {
-      setFoundId(auth.id);
-      setLoading(false);
-    } else {
-      setError("入力された惁E��が一致しません");
-      setLoading(false);
-    }
+    setLoading(false);
   };
 
   return (
@@ -78,7 +80,7 @@ export default function ForgotIdPage() {
             marginBottom: 16,
           }}
         >
-          ↁE
+          ←
         </button>
 
         <div style={{ textAlign: "center", marginBottom: 32 }}>
@@ -86,7 +88,7 @@ export default function ForgotIdPage() {
             IDを忘れた方
           </h1>
           <p style={{ opacity: 0.8, fontSize: 13, marginTop: 8 }}>
-            登録時�E電話番号と生年月日を�E力してください
+            登録時の電話番号と生年月日を入力してください
           </p>
         </div>
 
@@ -119,7 +121,7 @@ export default function ForgotIdPage() {
             }}
           >
             <div style={{ fontSize: 13, opacity: 0.9, marginBottom: 8 }}>
-              あなた�EIDは
+              あなたのメールは
             </div>
             <div style={{ fontSize: 20, fontWeight: 700, color: themeColor }}>
               {foundId}

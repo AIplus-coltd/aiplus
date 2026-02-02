@@ -42,27 +42,3 @@ self.addEventListener('activate', (event) => {
   );
   self.clients.claim();
 });
-
-// フェッチ
-self.addEventListener('fetch', (event) => {
-  const { request } = event;
-  const url = new URL(request.url);
-
-  // 動画やRangeリクエストはService Workerをバイパス
-  if (
-    request.headers.has('range') ||
-    request.destination === 'video' ||
-    url.pathname.startsWith('/videos/')
-  ) {
-    event.respondWith(fetch(request));
-    return;
-  }
-
-  // ローカル開発環境ではネットワークから直接取得
-  event.respondWith(
-    fetch(request).catch((err) => {
-      console.log('Fetch failed:', request.url, err);
-      return new Response('Offline', { status: 503 });
-    })
-  );
-});

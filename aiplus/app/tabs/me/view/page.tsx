@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { hybridGet, hybridSet } from "@/lib/hybrid-storage";
 
 type UserProfile = {
   username: string;
@@ -27,36 +28,71 @@ export default function ProfileViewPage() {
   const [savedVideos, setSavedVideos] = useState<VideoRow[]>([]);
   const [themeColor, setThemeColor] = useState<string>("#ff1493");
   const [backgroundColor, setBackgroundColor] = useState<"dark" | "light">("dark");
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [mySales, setMySales] = useState<any[]>([]);
+  const [totalRevenue, setTotalRevenue] = useState(0);
+  const [mailList, setMailList] = useState<any[]>([]);
+  const [selectedMail, setSelectedMail] = useState<number | null>(null);
+  const [ideaMessages, setIdeaMessages] = useState<{ id: string; role: "ai" | "user"; text: string }[]>([
+    {
+      id: "ai-welcome",
+      role: "ai",
+      text: "どんなページにしたいか教えてください。目的・ターゲット・雰囲気を書けば、AIがネタ案や構成を提案します。",
+    },
+  ]);
+  const [pageGoal, setPageGoal] = useState("");
+  const [pageAudience, setPageAudience] = useState("");
+  const [pageTone, setPageTone] = useState("");
+  const [activeTab, setActiveTab] = useState<"profile" | "mail" | "ideas" | "sales" | "score">("profile");
 
   useEffect(() => {
-    const savedSettings = localStorage.getItem("appSettings");
-    const settings = savedSettings ? JSON.parse(savedSettings) : {};
-    const color = settings.themeColor || "pink";
-    const bgColor = settings.backgroundColor || "dark";
-    const themeMap: Record<string, string> = {
-      pink: "#ff1493",
-      blue: "#64b5f6",
-      green: "#81c784",
-      purple: "#9d4edd",
-    };
-    setThemeColor(themeMap[color] || "#ff1493");
-    setBackgroundColor(bgColor);
+    const init = async () => {
+      const settings = (await hybridGet("appSettings")) || {};
+      const color = settings.themeColor || "pink";
+      const bgColor = settings.backgroundColor || "dark";
+      const themeMap: Record<string, string> = {
+        pink: "#ff1493",
+        blue: "#64b5f6",
+        green: "#81c784",
+        purple: "#9d4edd",
+      };
+      setThemeColor(themeMap[color] || "#ff1493");
+      setBackgroundColor(bgColor);
 
-    // 現在のユーザーIDを取得
-    let userId = null;
-    const userSessionRaw = sessionStorage.getItem("currentUser") || localStorage.getItem("currentUser");
-    if (userSessionRaw) {
-      try {
-        const parsed = JSON.parse(userSessionRaw);
-        userId = parsed.id;
-      } catch {}
-    }
-    if (userId) {
-      const savedProfile = localStorage.getItem(`userProfile_${userId}`);
-      if (savedProfile) {
-        setProfile(JSON.parse(savedProfile));
+      // 現在のユーザーIDを取得（複数のソースから確実に取得）
+      let userId = null;
+      const userSessionRaw = sessionStorage.getItem("currentUser") || localStorage.getItem("currentUser");
+      if (userSessionRaw) {
+        try {
+          const parsed = JSON.parse(userSessionRaw);
+          userId = parsed.id || parsed.user_id;
+          setCurrentUser(parsed);
+        } catch {}
       }
-    }
+
+      if (!userId) {
+        userId = localStorage.getItem("me");
+      }
+
+      if (!userId) {
+        userId = "demo-user";
+        localStorage.setItem("me", userId);
+      }
+
+      // プロフィール情報を読み込み
+      const savedProfile = await hybridGet(`userProfile_${userId}`);
+      if (savedProfile) {
+        setProfile(savedProfile);
+      } else {
+        const legacyProfile = localStorage.getItem("profile");
+        if (legacyProfile) {
+          try {
+            const parsed = JSON.parse(legacyProfile);
+            setProfile(parsed);
+            await hybridSet(`userProfile_${userId}`, parsed);
+          } catch {}
+        }
+      }
 
     const userSessionRaw2 = sessionStorage.getItem("currentUser");
     const storedUser = userSessionRaw2 || localStorage.getItem("currentUser");
@@ -73,19 +109,46 @@ export default function ProfileViewPage() {
       }
     }
 
-    // ユーザーごとの投稿のみ表示
-    let userVideos: VideoRow[] = [];
-    if (userId) {
-      const userVideosRaw = localStorage.getItem(`videos_${userId}`);
-      if (userVideosRaw) {
-        userVideos = JSON.parse(userVideosRaw);
+      // ユーザーごとの投稿のみ表示
+      let userVideos: VideoRow[] = [];
+      const allVideosRaw = localStorage.getItem("mockVideos");
+      const allVideos: VideoRow[] = allVideosRaw ? JSON.parse(allVideosRaw) : [];
+      if (userId) {
+        userVideos = allVideos.filter((v) => v.user_id === userId);
+        if (userVideos.length === 0) {
+          const userVideosRaw = localStorage.getItem(`videos_${userId}`);
+          if (userVideosRaw) {
+            userVideos = JSON.parse(userVideosRaw);
+          }
+        }
       }
-    }
-    setVideos(userVideos);
+      setVideos(userVideos);
 
-    const saved = localStorage.getItem("savedVideos");
-    const savedList = saved ? JSON.parse(saved) : [];
-    setSavedVideos(savedList);
+      const saved = localStorage.getItem("savedVideos");
+      const savedList = saved ? JSON.parse(saved) : [];
+      setSavedVideos(savedList);
+
+      // 売上データを取得
+      const salesData = localStorage.getItem("sales");
+      if (salesData && userId) {
+        const sales = JSON.parse(salesData);
+        const userSales = sales.filter((s: any) => s.sellerId === userId);
+        setMySales(userSales);
+
+        // 総売上を計算
+        const total = userSales.reduce((sum: number, sale: any) => sum + (sale.amount || 0), 0);
+        setTotalRevenue(total);
+      }
+
+      // メールを取得
+      const mailsData = localStorage.getItem(`mails_${userId}`);
+      if (mailsData) {
+        const mails = JSON.parse(mailsData);
+        setMailList(mails);
+      }
+    };
+
+    init();
 
     const handleThemeChange = (e: Event) => {
       const ce = e as CustomEvent;
@@ -106,7 +169,76 @@ export default function ProfileViewPage() {
     return () => window.removeEventListener("themeChanged", handleThemeChange);
   }, []);
 
+  // アクティブなタブが「profile」に変わったときに投稿を再読み込み
+  useEffect(() => {
+    if (activeTab === "profile") {
+      refreshVideos();
+    }
+  }, [activeTab]);
+
+  const pushIdeaMessage = (role: "ai" | "user", text: string) => {
+    setIdeaMessages((prev) => [...prev, { id: `${role}-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`, role, text }]);
+  };
+
+  // 投稿を再読み込みする関数
+  const refreshVideos = () => {
+    let userId = null;
+    const userSessionRaw = sessionStorage.getItem("currentUser") || localStorage.getItem("currentUser");
+    if (userSessionRaw) {
+      try {
+        const parsed = JSON.parse(userSessionRaw);
+        userId = parsed.id;
+      } catch {}
+    }
+
+    let userVideos: VideoRow[] = [];
+    const allVideosRaw = localStorage.getItem("mockVideos");
+    const allVideos: VideoRow[] = allVideosRaw ? JSON.parse(allVideosRaw) : [];
+    if (userId) {
+      userVideos = allVideos.filter((v) => v.user_id === userId);
+      if (userVideos.length === 0) {
+        const userVideosRaw = localStorage.getItem(`videos_${userId}`);
+        if (userVideosRaw) {
+          userVideos = JSON.parse(userVideosRaw);
+        }
+      }
+    }
+    setVideos(userVideos);
+  };
+
+  const handleGenerateIdeas = () => {
+    const goal = pageGoal.trim() || "ファンが集まる自己紹介ページ";
+    const audience = pageAudience.trim() || "動画を見てくれる潜在フォロワー";
+    const tone = pageTone.trim() || "親しみやすくワクワク";
+
+    pushIdeaMessage("user", `目的: ${goal}\nターゲット: ${audience}\n雰囲気: ${tone}`);
+
+    const suggestions = [
+      `レイアウト案: ヒーローエリアに1フレーズのキャッチと最新動画1本を埋め込み。下に「人気3本」「はじめての人はこれ」をカードで並べる。`,
+      `CTA: フォローボタンと「次のライブ予定」を並列配置。プロフィール冒頭に1つだけ強いアクションを置く。`,
+      `コンテンツ案: ${goal} を軸に、\n- 30秒でわかる自己紹介ショート\n- 毎週の裏側Vlogプレイリスト\n- 視聴者の質問に答えるQ&Aスレッド`,
+      `トーン: ${tone} に合わせて色はテーマカラーを薄めたグラデ背景、フォントは読みやすさ優先。`,
+      `収益/誘導: 無料オファー（チェックリスト/テンプレ）をページ中段に設置し、メールやSNSリンクを横並びに。`,
+      `改善ループ: クリック/再生の多いブロックを優先表示。週1で「反応トップ3」を固定欄に差し替え。`,
+    ];
+
+    pushIdeaMessage("ai", suggestions.join("\n\n"));
+  };
+
   const topVideo = useMemo(() => videos[0], [videos]);
+
+  // ログアウト処理
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {
+      // ignore
+    }
+    sessionStorage.removeItem("currentUser");
+    localStorage.removeItem("currentUser");
+    localStorage.removeItem("autoLoginUserId");
+    router.push("/login");
+  };
 
   return (
     <div
@@ -145,13 +277,19 @@ export default function ProfileViewPage() {
           マイページ
         </div>
         <button
+          onClick={handleLogout}
+          style={{ background: "transparent", border: "none", color: themeColor, cursor: "pointer", fontSize: 15, fontWeight: 600, marginRight: 8 }}
+          title="ログアウト"
+        >
+          ログアウト
+        </button>
+        <button
           onClick={() => router.push("/settings")}
           style={{ background: "transparent", border: "none", color: themeColor, cursor: "pointer", fontSize: 20, padding: "4px 8px" }}
           title="管理ページ"
         >
           ⚙
         </button>
-        
       </div>
 
       {/* コンテンツ */}
@@ -220,122 +358,491 @@ export default function ProfileViewPage() {
           </div>
         </div>
 
-        {/* ハイライト動画 */}
-        {topVideo && (
+        {/* タブナビゲーション */}
+        <div style={{ display: "flex", gap: 8, overflowX: "auto", marginBottom: 16, paddingBottom: 8 }}>
+          {["profile", "mail", "sales", "score", "ideas"].map((tab) => (
+            <button
+              key={tab}
+              onClick={() => {
+                setActiveTab(tab as any);
+                // プロフィールタブ切り替え時に投稿を再読み込み
+                if (tab === "profile") {
+                  setTimeout(() => refreshVideos(), 100);
+                }
+              }}
+              style={{
+                padding: "10px 16px",
+                borderRadius: 20,
+                border: activeTab === tab ? `2px solid ${themeColor}` : `1px solid ${backgroundColor === "light" ? "rgba(0,0,0,.2)" : `${themeColor}40`}`,
+                background: activeTab === tab
+                  ? `linear-gradient(135deg, ${themeColor}, ${themeColor}dd)`
+                  : backgroundColor === "light" ? "#f0f0f0" : "transparent",
+                color: activeTab === tab ? "#ffffff" : themeColor,
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                transition: "all 0.3s ease",
+              }}
+            >
+              {tab === "profile" && "📝 プロフィール"}
+              {tab === "mail" && "📨 メール"}
+              {tab === "sales" && "💰 売上"}
+              {tab === "ideas" && "💡 AI相談"}
+              {tab === "score" && "🏆 スコア"}
+            </button>
+          ))}
+        </div>
+
+        {/* プロフィールタブ */}
+        {activeTab === "profile" && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+              <button
+                onClick={() => router.push("/sell")}
+                style={{
+                  flex: 1,
+                  padding: "12px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: `linear-gradient(135deg, ${themeColor}, ${themeColor}dd)`,
+                  color: "white",
+                  fontSize: 13,
+                  fontWeight: "bold",
+                  cursor: "pointer",
+                }}
+              >
+                新しい商品を出品する
+              </button>
+              <button
+                onClick={() => router.push("/upload/camera")}
+                style={{
+                  flex: 1,
+                  padding: "12px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: `linear-gradient(135deg, ${themeColor}cc, ${themeColor}99)`,
+                  color: "white",
+                  fontSize: 13,
+                  fontWeight: "bold",
+                  cursor: "pointer",
+                }}
+              >
+                📹 新規投稿
+              </button>
+            </div>
+
+            {/* 投稿ビデオ */}
+            {videos.length > 0 ? (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 }}>
+                {videos.map((v) => (
+                  <div
+                    key={v.id}
+                    onClick={() => router.push(`/video/${v.id}`)}
+                    style={{
+                      borderRadius: 10,
+                      overflow: "hidden",
+                      cursor: "pointer",
+                      background: backgroundColor === "light" ? "#f0f0f0" : `${themeColor}15`,
+                      position: "relative",
+                    }}
+                  >
+                    <video
+                      src={v.video_url}
+                      style={{ width: "100%", height: 200, objectFit: "cover", display: "block" }}
+                    />
+                    <div style={{ padding: 8, fontSize: 11, fontWeight: 600, color: themeColor }}>
+                      {v.title || "タイトルなし"}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: 32,
+                  borderRadius: 12,
+                  background: backgroundColor === "light"
+                    ? `linear-gradient(135deg, ${themeColor}08, ${themeColor}03)`
+                    : `linear-gradient(135deg, ${themeColor}15, ${themeColor}08)`,
+                  border: `1px solid ${backgroundColor === "light" ? "rgba(0,0,0,.08)" : themeColor}40`,
+                  opacity: 0.7,
+                }}
+              >
+                <div style={{ fontSize: 12, marginBottom: 8 }}>投稿がまだありません</div>
+                <button
+                  onClick={() => router.push("/upload/camera")}
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: 20,
+                    border: `1px solid ${themeColor}`,
+                    background: "transparent",
+                    color: themeColor,
+                    fontSize: 12,
+                    fontWeight: "bold",
+                    cursor: "pointer",
+                  }}
+                >
+                  投稿を作成する
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* メールタブ */}
+        {activeTab === "mail" && (
+          <div style={{ marginBottom: 16 }}>
+            {selectedMail ? (
+              <div>
+                <button
+                  onClick={() => setSelectedMail(null)}
+                  style={{
+                    marginBottom: 12,
+                    padding: "8px 12px",
+                    borderRadius: 8,
+                    border: "none",
+                    background: `linear-gradient(135deg, ${themeColor}44, ${themeColor}33)`,
+                    color: themeColor,
+                    fontSize: 12,
+                    fontWeight: "bold",
+                    cursor: "pointer",
+                  }}
+                >
+                  ← 戻る
+                </button>
+                {mailList.find((m) => m.id === selectedMail) && (
+                  <div
+                    style={{
+                      padding: 16,
+                      borderRadius: 12,
+                      background: backgroundColor === "light"
+                        ? "#ffffff"
+                        : `linear-gradient(135deg, ${themeColor}12, ${themeColor}06)`,
+                      border: `1px solid ${backgroundColor === "light" ? "rgba(0,0,0,.08)" : themeColor}40`,
+                      boxShadow: backgroundColor === "light" ? "0 4px 14px rgba(0,0,0,.06)" : `0 6px 18px ${themeColor}22`,
+                    }}
+                  >
+                    <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8, color: themeColor }}>
+                      {mailList.find((m) => m.id === selectedMail)?.subject}
+                    </div>
+                    <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 12 }}>
+                      From: {mailList.find((m) => m.id === selectedMail)?.from}
+                    </div>
+                    <div style={{ fontSize: 13, lineHeight: 1.8, whiteSpace: "pre-wrap", opacity: 0.9 }}>
+                      {mailList.find((m) => m.id === selectedMail)?.body}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {mailList.map((mail) => (
+                  <button
+                    key={mail.id}
+                    onClick={() => setSelectedMail(mail.id)}
+                    style={{
+                      padding: 12,
+                      borderRadius: 10,
+                      border: `1px solid ${backgroundColor === "light" ? "rgba(0,0,0,.1)" : themeColor}40`,
+                      background: backgroundColor === "light"
+                        ? "linear-gradient(135deg, rgba(255,255,255,.9), rgba(240,240,240,.8))"
+                        : `linear-gradient(135deg, ${themeColor}15, ${themeColor}08)`,
+                      textAlign: "left",
+                      cursor: "pointer",
+                      transition: "all 0.3s ease",
+                    }}
+                  >
+                    <div style={{ fontWeight: 600, marginBottom: 4, color: themeColor, fontSize: 13 }}>
+                      {mail.subject}
+                    </div>
+                    <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 4 }}>
+                      {mail.from}
+                    </div>
+                    <div style={{ fontSize: 12, opacity: 0.9, marginBottom: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {mail.body}
+                    </div>
+                    <div style={{ fontSize: 10, opacity: 0.5 }}>
+                      {mail.date}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 売上管理セクション */}
+        {activeTab === "sales" && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 12, opacity: 0.9, fontSize: 14, color: themeColor, fontWeight: 700 }}>
+            💰 売上管理
+          </div>
+
+          {/* 売上統計 */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+            <div
+              style={{
+                background: backgroundColor === "light"
+                  ? `linear-gradient(135deg, ${themeColor}15, ${themeColor}08)`
+                  : `linear-gradient(135deg, ${themeColor}25, ${themeColor}15)`,
+                borderRadius: 12,
+                padding: 16,
+                border: `1px solid ${themeColor}40`,
+              }}
+            >
+              <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>総売上</div>
+              <div style={{ fontSize: 20, fontWeight: "bold", color: themeColor }}>
+                ¥{totalRevenue.toLocaleString()}
+              </div>
+            </div>
+            <div
+              style={{
+                background: backgroundColor === "light"
+                  ? `linear-gradient(135deg, ${themeColor}15, ${themeColor}08)`
+                  : `linear-gradient(135deg, ${themeColor}25, ${themeColor}15)`,
+                borderRadius: 12,
+                padding: 16,
+                border: `1px solid ${themeColor}40`,
+              }}
+            >
+              <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>販売数</div>
+              <div style={{ fontSize: 20, fontWeight: "bold", color: themeColor }}>
+                {mySales.length}
+              </div>
+            </div>
+          </div>
+
+          {/* 最近の販売 */}
+          {mySales.length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: "bold", marginBottom: 8 }}>最近の販売</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 250, overflowY: "auto" }}>
+                {mySales.reverse().slice(0, 5).map((sale) => (
+                  <div
+                    key={sale.id}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: 12,
+                      background: backgroundColor === "light" ? "#f8f8f8" : `${themeColor}15`,
+                      borderRadius: 10,
+                      border: `1px solid ${backgroundColor === "light" ? "rgba(0,0,0,.1)" : `${themeColor}25`}`,
+                      fontSize: 12,
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: "600", marginBottom: 2 }}>{sale.buyerName}</div>
+                      <div style={{ opacity: 0.6, fontSize: 11 }}>
+                        {new Date(sale.createdAt).toLocaleDateString("ja-JP")}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "right", fontWeight: "bold", color: themeColor }}>
+                      ¥{sale.amount.toLocaleString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: 10 }}>
+            <button
+              onClick={() => router.push("/sell")}
+              style={{
+                flex: 1,
+                padding: "12px",
+                borderRadius: 10,
+                border: "none",
+                background: `linear-gradient(135deg, ${themeColor}, ${themeColor}dd)`,
+                color: "white",
+                fontSize: 13,
+                fontWeight: "bold",
+                cursor: "pointer",
+              }}
+            >
+              新しい商品を出品する
+            </button>
+            {mySales.length > 0 && (
+              <button
+                onClick={() => router.push("/sales")}
+                style={{
+                  flex: 1,
+                  padding: "12px",
+                  borderRadius: 10,
+                  border: `1px solid ${themeColor}`,
+                  background: "transparent",
+                  color: themeColor,
+                  fontSize: 13,
+                  fontWeight: "bold",
+                  cursor: "pointer",
+                }}
+              >
+                売上詳細
+              </button>
+            )}
+          </div>
+        </div>
+        )}
+
+        {/* スコアタブ */}
+        {activeTab === "score" && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 12, opacity: 0.9, fontSize: 14, color: themeColor, fontWeight: 700 }}>
+            🏆 スコア
+          </div>
           <div
             style={{
-              padding: 14,
+              padding: 16,
               borderRadius: 12,
-              background: backgroundColor === "light" ? "#ffffff" : `linear-gradient(135deg, ${themeColor}12, ${themeColor}06)`,
+              background: backgroundColor === "light"
+                ? "#ffffff"
+                : `linear-gradient(135deg, ${themeColor}12, ${themeColor}06)`,
               border: `1px solid ${backgroundColor === "light" ? "rgba(0,0,0,.08)" : themeColor}40`,
               boxShadow: backgroundColor === "light" ? "0 4px 14px rgba(0,0,0,.06)" : `0 6px 18px ${themeColor}22`,
             }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: themeColor }}>注目の動画</div>
-              <div style={{ fontSize: 11, opacity: 0.65 }}>{new Date(topVideo.created_at).toLocaleString()}</div>
+            <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>
+              自分のスコア上位10位・全ユーザーTOP5を確認できます
             </div>
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <div style={{ flex: "1 1 220px", minWidth: 220, maxWidth: 360 }}>
-                <video
-                  src={topVideo.video_url}
-                  controls
-                  style={{ width: "100%", borderRadius: 10, border: `1px solid ${backgroundColor === "light" ? "rgba(0,0,0,.08)" : themeColor}26`, maxHeight: 240, objectFit: "cover" }}
-                />
-              </div>
-              <div style={{ flex: "1 1 220px", minWidth: 220 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>{topVideo.title || "タイトルなし"}</div>
-                <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 8, lineHeight: 1.6 }}>
-                  {topVideo.description || "説明がありません"}
-                </div>
-                <div style={{ fontSize: 11, opacity: 0.65 }}>
-                  {topVideo.created_at ? new Date(topVideo.created_at).toLocaleDateString() : ""}
-                </div>
-              </div>
-            </div>
+            <button
+              onClick={() => router.push("/tabs/score")}
+              style={{
+                width: "100%",
+                padding: "12px",
+                borderRadius: 10,
+                border: "none",
+                background: `linear-gradient(135deg, ${themeColor}, ${themeColor}dd)`,
+                color: "white",
+                fontSize: 13,
+                fontWeight: "bold",
+                cursor: "pointer",
+              }}
+            >
+              スコアページを見る
+            </button>
           </div>
+        </div>
         )}
 
-        {/* 保存した動画 */}
-        <div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: themeColor }}>
-              保存した動画 ({savedVideos.length})
-            </div>
-            {savedVideos.length > 0 && (
-              <button
-                onClick={() => router.push("/tabs/saved")}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: 8,
-                  border: `1px solid ${themeColor}66`,
-                  background: `linear-gradient(135deg, ${themeColor}4d, ${themeColor}33)`,
-                  color: "white",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  boxShadow: `0 4px 12px ${themeColor}26`,
-                }}
-              >
-                すべて見る →
-              </button>
-            )}
+        {/* AI相談 - ページ企画設定 & AIアイデア */}
+        {activeTab === "ideas" && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 12, opacity: 0.9, fontSize: 14, color: themeColor, fontWeight: 700 }}>
+            💡 AI相談 - ページ企画設定 & AIアイデア
           </div>
-          {savedVideos.length === 0 ? (
-            <div style={{ opacity: 0.7, fontSize: 14 }}>まだ保存した動画がありません</div>
-          ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10 }}>
-              {savedVideos.slice(0, 6).map((v, idx) => (
-                <div key={`saved-${v.id}-${idx}`} style={{ position: "relative", paddingBottom: "100%", overflow: "hidden", borderRadius: 8 }}>
-                  <video
-                    src={v.video_url}
-                    controls
-                    style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", objectFit: "cover" }}
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
 
-        {/* 投稿グリッド */}
-        <div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: themeColor }}>投稿一覧 ({videos.length})</div>
-            {videos.length > 0 && (
-              <button
-                onClick={() => router.push("/tabs/me/posts")}
+          <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", marginBottom: 12 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <label style={{ fontSize: 12, opacity: 0.75 }}>どんなページにしたい？</label>
+              <input
+                value={pageGoal}
+                onChange={(e) => setPageGoal(e.target.value)}
+                placeholder="例: 初見さん向けの自己紹介"
                 style={{
-                  padding: "6px 12px",
-                  borderRadius: 8,
-                  border: `1px solid ${themeColor}66`,
-                  background: `linear-gradient(135deg, ${themeColor}4d, ${themeColor}33)`,
-                  color: "white",
+                  padding: "10px 12px",
+                  borderRadius: 10,
+                  border: `1px solid ${backgroundColor === "light" ? "rgba(0,0,0,.12)" : themeColor}40`,
+                  background: backgroundColor === "light" ? "#ffffff" : `linear-gradient(135deg, ${themeColor}1a, ${themeColor}0d)`,
+                  color: backgroundColor === "light" ? "#333" : "white",
+                  fontSize: 13,
+                }}
+              />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <label style={{ fontSize: 12, opacity: 0.75 }}>ターゲット/読者</label>
+              <input
+                value={pageAudience}
+                onChange={(e) => setPageAudience(e.target.value)}
+                placeholder="例: 勉強系ショート好きな20代"
+                style={{
+                  padding: "10px 12px",
+                  borderRadius: 10,
+                  border: `1px solid ${backgroundColor === "light" ? "rgba(0,0,0,.12)" : themeColor}40`,
+                  background: backgroundColor === "light" ? "#ffffff" : `linear-gradient(135deg, ${themeColor}1a, ${themeColor}0d)`,
+                  color: backgroundColor === "light" ? "#333" : "white",
+                  fontSize: 13,
+                }}
+              />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <label style={{ fontSize: 12, opacity: 0.75 }}>雰囲気/トーン</label>
+              <input
+                value={pageTone}
+                onChange={(e) => setPageTone(e.target.value)}
+                placeholder="例: 親しみやすく、ワクワク"
+                style={{
+                  padding: "10px 12px",
+                  borderRadius: 10,
+                  border: `1px solid ${backgroundColor === "light" ? "rgba(0,0,0,.12)" : themeColor}40`,
+                  background: backgroundColor === "light" ? "#ffffff" : `linear-gradient(135deg, ${themeColor}1a, ${themeColor}0d)`,
+                  color: backgroundColor === "light" ? "#333" : "white",
+                  fontSize: 13,
+                }}
+              />
+            </div>
+          </div>
+
+          <button
+            onClick={handleGenerateIdeas}
+            style={{
+              width: "100%",
+              padding: "12px 16px",
+              borderRadius: 10,
+              border: `1px solid ${themeColor}80`,
+              background: `linear-gradient(135deg, ${themeColor}bf, ${themeColor}a6)`,
+              color: "white",
+              fontWeight: 700,
+              cursor: "pointer",
+              boxShadow: `0 10px 24px ${themeColor}33`,
+              marginBottom: 12,
+            }}
+          >
+            AIに提案してもらう
+          </button>
+
+          <div
+            style={{
+              borderRadius: 12,
+              border: `1px solid ${backgroundColor === "light" ? "rgba(0,0,0,.08)" : themeColor}40`,
+              background: backgroundColor === "light"
+                ? `linear-gradient(135deg, ${themeColor}04, ${themeColor}08)`
+                : `linear-gradient(135deg, ${themeColor}18, ${themeColor}0d)`,
+              padding: 12,
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+              maxHeight: 240,
+              overflowY: "auto",
+            }}
+          >
+            {ideaMessages.map((m) => (
+              <div
+                key={m.id}
+                style={{
+                  alignSelf: m.role === "user" ? "flex-end" : "flex-start",
+                  maxWidth: "92%",
+                  padding: "10px 12px",
+                  borderRadius: 10,
+                  background: m.role === "user"
+                    ? backgroundColor === "light" ? "#ffffff" : `linear-gradient(135deg, ${themeColor}10, ${themeColor}05)`
+                    : backgroundColor === "light" ? `${themeColor}12` : `linear-gradient(135deg, ${themeColor}22, ${themeColor}12)`,
+                  border: `1px solid ${backgroundColor === "light" ? "rgba(0,0,0,.08)" : themeColor}30`,
+                  color: backgroundColor === "light" ? "#333" : "white",
+                  whiteSpace: "pre-wrap",
+                  lineHeight: 1.5,
                   fontSize: 12,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  boxShadow: `0 4px 12px ${themeColor}26`,
+                  boxShadow: backgroundColor === "light" ? "0 2px 8px rgba(0,0,0,.06)" : `0 4px 14px ${themeColor}1f`,
                 }}
               >
-                すべて見る →
-              </button>
-            )}
+                {m.text}
+              </div>
+            ))}
           </div>
-          {videos.length === 0 ? (
-            <div style={{ opacity: 0.7, fontSize: 14 }}>まだ投稿がありません</div>
-          ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 10 }}>
-              {videos.map((v, idx) => (
-                <div key={`post-${v.id}-${idx}`} style={{ position: "relative", paddingBottom: "100%", overflow: "hidden", borderRadius: 8 }}>
-                  <video
-                    src={v.video_url}
-                    style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", objectFit: "cover" }}
-                  />
-                </div>
-              ))}
-            </div>
-          )}
         </div>
+        )}
       </div>
     </div>
   );

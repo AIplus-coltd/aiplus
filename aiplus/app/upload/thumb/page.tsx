@@ -60,8 +60,15 @@ export default function ThumbnailEditPage() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed.videoUrl) {
-          setVideoUrl(parsed.videoUrl);
+        const sessionVideoUrl = parsed.videoUrl;
+        
+        // CUT_CONFIG_KEY からも確認
+        const cutConfig = localStorage.getItem(CUT_CONFIG_KEY);
+        const cutVideoUrl = cutConfig ? JSON.parse(cutConfig).videoUrl : null;
+        
+        const effectiveVideoUrl = sessionVideoUrl || cutVideoUrl;
+        if (effectiveVideoUrl) {
+          setVideoUrl(effectiveVideoUrl);
           if (parsed.coverTime !== undefined) setCurrentTime(parsed.coverTime);
         }
       } catch {}
@@ -101,7 +108,13 @@ export default function ThumbnailEditPage() {
     if (videoRef.current) {
       setDuration(videoRef.current.duration || 0);
       videoRef.current.currentTime = currentTime;
+      drawThumbnail();
     }
+  };
+
+  const handleVideoSeeked = () => {
+    // ビデオシーク完了後に描画を確実に実行
+    drawThumbnail();
   };
 
   const drawThumbnail = () => {
@@ -354,7 +367,7 @@ export default function ThumbnailEditPage() {
   };
 
   useEffect(() => {
-    const timer = setTimeout(() => drawThumbnail(), 100);
+     const timer = setTimeout(() => drawThumbnail(), 200);
     return () => clearTimeout(timer);
   }, [scale, offsetX, offsetY, brightness, contrast, videoUrl, currentTime, text, textSize, textColor, textX, textY, bgImageUrl, useVideoFrame]);
 
@@ -530,7 +543,11 @@ export default function ThumbnailEditPage() {
                   onChange={(e) => {
                     const val = Number(e.target.value);
                     setCurrentTime(val);
-                    if (videoRef.current) videoRef.current.currentTime = val;
+                      if (videoRef.current) {
+                        videoRef.current.currentTime = val;
+                        // 遅延後に描画を再実行してシンク確保
+                        setTimeout(() => drawThumbnail(), 50);
+                      }
                   }}
                   style={{ flex: 1 }}
                 />

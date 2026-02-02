@@ -1,13 +1,14 @@
 ﻿"use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
-  const [userId, setUserId] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [birthDate, setBirthDate] = useState("");
+  const searchParams = useSearchParams();
+  const [email, setEmail] = useState("");
+  const [resetToken, setResetToken] = useState("");
+  const [smsCode, setSmsCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [step, setStep] = useState<"verify" | "reset">("verify");
@@ -29,68 +30,75 @@ export default function ForgotPasswordPage() {
     }
   }, []);
 
-  const handleVerify = () => {
-    setError("");
-
-    if (!userId || !phoneNumber || !birthDate) {
-      setError("すべての項目を入力してください");
-      return;
-    }
-
-    setLoading(true);
-
-    const userAuth = localStorage.getItem("userAuth");
-    if (!userAuth) {
-      setError("アカウントが見つかりません");
-      setLoading(false);
-      return;
-    }
-
-    const auth = JSON.parse(userAuth);
-    if (
-      auth.id === userId &&
-      auth.phoneNumber === phoneNumber &&
-      auth.birthDate === birthDate
-    ) {
+  useEffect(() => {
+    const token = searchParams.get("token");
+    if (token) {
+      setResetToken(token);
       setStep("reset");
-      setLoading(false);
-    } else {
-      setError("入力された情報が一致しません");
-      setLoading(false);
     }
+  }, [searchParams]);
+
+  const handleVerify = async () => {
+    setError("");
+    if (!email) {
+      setError("メールアドレスを入力してください");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data?.error || "送信に失敗しました");
+        setLoading(false);
+        return;
+      }
+      setStep("reset");
+    } catch {
+      setError("送信に失敗しました");
+    }
+    setLoading(false);
   };
 
-  const handleResetPassword = () => {
+  const handleResetPassword = async () => {
     setError("");
-
-    if (!newPassword || !confirmPassword) {
+    if (!resetToken || !smsCode || !newPassword || !confirmPassword) {
       setError("新しいパスワードを入力してください");
       return;
     }
-
     if (newPassword !== confirmPassword) {
       setError("パスワードが一致しません");
       return;
     }
-
-    if (newPassword.length < 6) {
-      setError("パスワードは6文字以上にしてください");
+    if (newPassword.length < 8 || !/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/\d/.test(newPassword)) {
+      setError("パスワードは8文字以上で英大文字・小文字・数字を含めてください");
       return;
     }
-
     setLoading(true);
-
-    const userAuth = localStorage.getItem("userAuth");
-    if (userAuth) {
-      const auth = JSON.parse(userAuth);
-      auth.password = newPassword;
-      localStorage.setItem("userAuth", JSON.stringify(auth));
-
+    try {
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: resetToken, smsCode, newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data?.error || "再設定に失敗しました");
+        setLoading(false);
+        return;
+      }
       setTimeout(() => {
         alert("パスワードを再設定しました");
         router.push("/login");
       }, 300);
+    } catch {
+      setError("再設定に失敗しました");
     }
+    setLoading(false);
   };
 
   return (
@@ -150,56 +158,13 @@ export default function ForgotPasswordPage() {
           <>
             <div style={{ marginBottom: 16 }}>
               <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: "block" }}>
-                ユーザーID
+                メールアドレス
               </label>
               <input
-                type="text"
-                value={userId}
-                onChange={(e) => setUserId(e.target.value)}
-                placeholder="user123"
-                style={{
-                  width: "100%",
-                  padding: 12,
-                  borderRadius: 8,
-                  border: `1px solid ${themeColor}33`,
-                  background: "rgba(26,10,40,.6)",
-                  color: "white",
-                  fontSize: 14,
-                  outline: "none",
-                }}
-              />
-            </div>
-
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: "block" }}>
-                電話番号
-              </label>
-              <input
-                type="tel"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                placeholder="09012345678"
-                style={{
-                  width: "100%",
-                  padding: 12,
-                  borderRadius: 8,
-                  border: `1px solid ${themeColor}33`,
-                  background: "rgba(26,10,40,.6)",
-                  color: "white",
-                  fontSize: 14,
-                  outline: "none",
-                }}
-              />
-            </div>
-
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: "block" }}>
-                生年月日
-              </label>
-              <input
-                type="date"
-                value={birthDate}
-                onChange={(e) => setBirthDate(e.target.value)}
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="example@mail.com"
                 style={{
                   width: "100%",
                   padding: 12,
@@ -229,11 +194,55 @@ export default function ForgotPasswordPage() {
                 boxShadow: `0 0 24px ${themeColor}44`,
               }}
             >
-              {loading ? "確認中..." : "本人確認"}
+              {loading ? "送信中..." : "再設定リンク送信"}
             </button>
           </>
         ) : (
           <>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: "block" }}>
+                再設定リンクのトークン
+              </label>
+              <input
+                type="text"
+                value={resetToken}
+                onChange={(e) => setResetToken(e.target.value)}
+                placeholder="メールに記載されたトークン"
+                style={{
+                  width: "100%",
+                  padding: 12,
+                  borderRadius: 8,
+                  border: `1px solid ${themeColor}33`,
+                  background: "rgba(26,10,40,.6)",
+                  color: "white",
+                  fontSize: 14,
+                  outline: "none",
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: "block" }}>
+                SMSコード
+              </label>
+              <input
+                type="text"
+                value={smsCode}
+                onChange={(e) => setSmsCode(e.target.value)}
+                placeholder="SMSで届いた6桁コード"
+                style={{
+                  width: "100%",
+                  padding: 12,
+                  borderRadius: 8,
+                  border: `1px solid ${themeColor}33`,
+                  background: "rgba(26,10,40,.6)",
+                  color: "white",
+                  fontSize: 14,
+                  outline: "none",
+                }}
+              />
+            </div>
+
             <div style={{ marginBottom: 16 }}>
               <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: "block" }}>
                 新しいパスワード
@@ -242,7 +251,7 @@ export default function ForgotPasswordPage() {
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="6文字以上"
+                placeholder="8文字以上・英大文字/小文字/数字"
                 style={{
                   width: "100%",
                   padding: 12,
@@ -258,13 +267,13 @@ export default function ForgotPasswordPage() {
 
             <div style={{ marginBottom: 20 }}>
               <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: "block" }}>
-                パスワード（確認）
+                パスワード確認
               </label>
               <input
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="もう一度入力"
+                placeholder="確認用パスワード"
                 style={{
                   width: "100%",
                   padding: 12,

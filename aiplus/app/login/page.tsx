@@ -13,6 +13,8 @@ export default function LoginPage() {
   const [backgroundColor, setBackgroundColor] = useState<"dark" | "light">("dark");
   const [rememberMe, setRememberMe] = useState(false);
   const [showForgotHint, setShowForgotHint] = useState(false);
+  const [smsRequired, setSmsRequired] = useState(false);
+  const [smsCode, setSmsCode] = useState("");
 
   useEffect(() => {
     const savedSettings = localStorage.getItem("appSettings");
@@ -30,15 +32,23 @@ export default function LoginPage() {
     setThemeColor(themeMap[color] || "#ff1493");
     setBackgroundColor(bgColor);
 
-    const autoLoginUserId = localStorage.getItem("autoLoginUserId");
-    if (autoLoginUserId) {
-      setRememberMe(true);
-    }
+    const checkSession = async () => {
+      try {
+        const res = await fetch("/api/auth/session");
+        if (res.ok) {
+          router.push("/tabs/feed");
+        }
+      } catch {
+        // ignore
+      }
+    };
+    checkSession();
   }, []);
 
   const handleLogin = async () => {
     setError("");
     setShowForgotHint(false);
+    setSmsRequired(false);
     setLoading(true);
 
     if (!email || !password) {
@@ -48,43 +58,73 @@ export default function LoginPage() {
     }
 
     try {
-      const users = JSON.parse(localStorage.getItem("aiplus_users") || "[]");
-      const user = users.find((u: any) => u.email === email && u.password === password);
-      const emailExists = users.some((u: any) => u.email === email);
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, rememberMe }),
+      });
 
-      if (!user) {
-        if (emailExists) {
-          setError("このメールアドレスは既に登録されています");
-          setShowForgotHint(true);
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data?.error || "ログインに失敗しました");
+        if (data?.requiresSms) {
+          setSmsRequired(true);
         } else {
-          setError("メールアドレスまたはパスワードが正しくありません");
+          setShowForgotHint(true);
         }
         setLoading(false);
         return;
       }
 
-      const sessionUser = {
-        id: user.id,
-        email: user.email,
-        username: user.username,
-      };
-
-      // セッションに保存
-      sessionStorage.setItem("currentUser", JSON.stringify(sessionUser));
-
-      // 自動ログインを有効にする場合のみ端末に保存
-      if (rememberMe) {
-        localStorage.setItem("currentUser", JSON.stringify(sessionUser));
-        localStorage.setItem("autoLoginUserId", user.id);
-      } else {
-        localStorage.removeItem("currentUser");
-        localStorage.removeItem("autoLoginUserId");
+      if (data?.user) {
+        sessionStorage.setItem("currentUser", JSON.stringify(data.user));
+        if (rememberMe) {
+          localStorage.setItem("currentUser", JSON.stringify(data.user));
+          localStorage.setItem("autoLoginUserId", data.user.id);
+        } else {
+          localStorage.removeItem("currentUser");
+          localStorage.removeItem("autoLoginUserId");
+        }
       }
 
       setLoading(false);
       router.push("/tabs/feed");
     } catch (err) {
       setError("ログインに失敗しました");
+      setLoading(false);
+    }
+  };
+
+  const handleVerifySms = async () => {
+    setError("");
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/verify-login-sms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, smsCode }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data?.error || "SMS認証に失敗しました");
+        setLoading(false);
+        return;
+      }
+
+      if (data?.user) {
+        sessionStorage.setItem("currentUser", JSON.stringify(data.user));
+        if (rememberMe) {
+          localStorage.setItem("currentUser", JSON.stringify(data.user));
+          localStorage.setItem("autoLoginUserId", data.user.id);
+        } else {
+          localStorage.removeItem("currentUser");
+          localStorage.removeItem("autoLoginUserId");
+        }
+      }
+      setLoading(false);
+      router.push("/tabs/feed");
+    } catch {
+      setError("SMS認証に失敗しました");
       setLoading(false);
     }
   };
@@ -151,6 +191,40 @@ export default function LoginPage() {
               fontSize: 14,
             }}
           />
+
+          {smsRequired && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <input
+                type="text"
+                value={smsCode}
+                onChange={(e) => setSmsCode(e.target.value)}
+                placeholder="SMSコード（6桁）"
+                style={{
+                  padding: "12px 16px",
+                  borderRadius: 10,
+                  border: `1px solid ${backgroundColor === "light" ? "rgba(0,0,0,.12)" : themeColor}40`,
+                  background: backgroundColor === "light" ? "#f5f5f5" : `linear-gradient(135deg, ${themeColor}1a, ${themeColor}0d)`,
+                  color: backgroundColor === "light" ? "#333" : "white",
+                  fontSize: 14,
+                }}
+              />
+              <button
+                onClick={handleVerifySms}
+                disabled={loading}
+                style={{
+                  padding: "12px 16px",
+                  borderRadius: 10,
+                  border: `1px solid ${themeColor}80`,
+                  background: `linear-gradient(135deg, ${themeColor}bf, ${themeColor}a6)`,
+                  color: "white",
+                  fontWeight: 700,
+                  cursor: loading ? "not-allowed" : "pointer",
+                }}
+              >
+                {loading ? "確認中..." : "SMS認証してログイン"}
+              </button>
+            </div>
+          )}
 
           {showForgotHint && (
             <div style={{ fontSize: 12, opacity: 0.8 }}>

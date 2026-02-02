@@ -1,0 +1,15 @@
+{
+  "name": "AI+",
+  "short_name": "AI+",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#10162a",
+  "theme_color": "#ff1493",
+  "icons": [
+    {
+      "src": "/logo/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

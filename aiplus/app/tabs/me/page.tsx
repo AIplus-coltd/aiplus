@@ -1,7 +1,8 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { hybridGet, hybridSet } from "@/lib/hybrid-storage";
 
 type UserProfile = {
   username: string;
@@ -30,82 +31,97 @@ export default function ProfileEditPage() {
   const [ready, setReady] = useState(false);
   const [themeColor, setThemeColor] = useState<string>("#ff1493");
   const [backgroundColor, setBackgroundColor] = useState<"dark" | "light">("dark");
-  const [pageGoal, setPageGoal] = useState("");
-  const [pageAudience, setPageAudience] = useState("");
-  const [pageTone, setPageTone] = useState("");
-  const [ideaMessages, setIdeaMessages] = useState<{ id: string; role: "ai" | "user"; text: string }[]>([
-    {
-      id: "ai-welcome",
-      role: "ai",
-      text: "どんなページにしたいか教えてください。目的・ターゲット・雰囲気を書けば、AIがネタ案や構成を提案します。",
-    },
-  ]);
+  // AI\u76f8\u8ac7\u6a5f\u80fd\u306f\u6295\u7a3f\u4e00\u89a7\u30fb\u4fdd\u5b58\u4e00\u89a7\u30da\u30fc\u30b8\u306b\u79fb\u52d5\u3057\u307e\u3057\u305f
 
-  useEffect(() => {
-    // テーマ設定を取得
-    const savedSettings = localStorage.getItem("appSettings");
-    const settings = savedSettings ? JSON.parse(savedSettings) : {};
-    const color = settings.themeColor || "pink";
-    const bgColor = settings.backgroundColor || "dark";
-    
-    const themeMap: Record<string, string> = {
-      pink: "#ff1493",
-      blue: "#64b5f6",
-      green: "#81c784",
-      purple: "#9d4edd",
-    };
-    
-    setThemeColor(themeMap[color] || "#ff1493");
-    setBackgroundColor(bgColor);
-
-    // ローカルストレージからプロフィール情報と動画を取得
-    // 現在のユーザーIDを取得
-    let userId = null;
+  const resolveUserId = () => {
+    let userId: string | null = null;
     const sessionUser = sessionStorage.getItem("currentUser") || localStorage.getItem("currentUser");
     if (sessionUser) {
       try {
         const parsed = JSON.parse(sessionUser);
-        userId = parsed.id;
+        userId = parsed.id || parsed.user_id;
       } catch {}
     }
-    if (userId) {
-      const savedProfile = localStorage.getItem(`userProfile_${userId}`);
+    if (!userId) userId = localStorage.getItem("me");
+    if (!userId) {
+      userId = "demo-user";
+      localStorage.setItem("me", userId);
+    }
+    return userId;
+  };
+
+  useEffect(() => {
+    const init = async () => {
+      // テーマ設定を取得
+      const settings = (await hybridGet("appSettings")) || {};
+      const color = settings.themeColor || "pink";
+      const bgColor = settings.backgroundColor || "dark";
+
+      const themeMap: Record<string, string> = {
+        pink: "#ff1493",
+        blue: "#64b5f6",
+        green: "#81c784",
+        purple: "#9d4edd",
+      };
+
+      setThemeColor(themeMap[color] || "#ff1493");
+      setBackgroundColor(bgColor);
+
+      const userId = resolveUserId();
+
+      // プロフィール情報を読み込み（ユーザーIDごと）
+      const savedProfile = await hybridGet(`userProfile_${userId}`);
       if (savedProfile) {
-        setProfile(JSON.parse(savedProfile));
+        setProfile(savedProfile);
+      } else {
+        const legacyProfile = localStorage.getItem("profile");
+        if (legacyProfile) {
+          try {
+            const parsed = JSON.parse(legacyProfile);
+            setProfile(parsed);
+            await hybridSet(`userProfile_${userId}`, parsed);
+          } catch {}
+        }
       }
-    }
 
-    // ユーザーごとに投稿を分離
-    let userVideos: VideoRow[] = [];
-    if (userId) {
-      const userVideosRaw = localStorage.getItem(`videos_${userId}`);
-      if (userVideosRaw) {
-        userVideos = JSON.parse(userVideosRaw);
+      // ユーザーごとに投稿を分離
+      let userVideos: VideoRow[] = [];
+      const allVideosRaw = localStorage.getItem("mockVideos");
+      const allVideos: VideoRow[] = allVideosRaw ? JSON.parse(allVideosRaw) : [];
+      if (userId) {
+        userVideos = allVideos.filter((v) => v.user_id === userId);
+        if (userVideos.length === 0) {
+          const userVideosRaw = localStorage.getItem(`videos_${userId}`);
+          if (userVideosRaw) {
+            userVideos = JSON.parse(userVideosRaw);
+          }
+        }
       }
-    }
-    setVideos(userVideos);
+      setVideos(userVideos);
 
-    setReady(true);
+      setReady(true);
+    };
 
-    // カスタムイベント "themeChanged" をリッスンして設定変更を監視
+    init();
+
     const handleThemeChange = (e: Event) => {
       const customEvent = e as CustomEvent;
       if (customEvent.detail) {
         const color = customEvent.detail.themeColor || "pink";
         const bgColor = customEvent.detail.backgroundColor || "dark";
-        
+
         const themeMap: Record<string, string> = {
           pink: "#ff1493",
           blue: "#64b5f6",
           green: "#81c784",
           purple: "#9d4edd",
         };
-        
+
         setThemeColor(themeMap[color] || "#ff1493");
         setBackgroundColor(bgColor);
       }
     };
-    
+
     window.addEventListener("themeChanged", handleThemeChange);
     return () => window.removeEventListener("themeChanged", handleThemeChange);
   }, []);
@@ -113,19 +129,15 @@ export default function ProfileEditPage() {
   const handleSave = () => {
     setIsSaving(true);
     
-    // ローカルストレージにプロフィール情報を保存
-    // 現在のユーザーIDを取得
-    let userId = null;
-    const sessionUser = sessionStorage.getItem("currentUser") || localStorage.getItem("currentUser");
-    if (sessionUser) {
-      try {
-        const parsed = JSON.parse(sessionUser);
-        userId = parsed.id;
-      } catch {}
-    }
-    if (userId) {
-      localStorage.setItem(`userProfile_${userId}` , JSON.stringify(profile));
-    }
+    // 現在のユーザーIDを取得（複数のソースから確実に取得）
+    const userId = resolveUserId();
+    
+    // ユーザーIDごとに保存
+    localStorage.setItem(`userProfile_${userId}`, JSON.stringify(profile));
+    hybridSet(`userProfile_${userId}`, profile).catch(() => null);
+    
+    // 後方互換性のため、profileキーにも保存
+    localStorage.setItem("profile", JSON.stringify(profile));
     
     setTimeout(() => {
       setIsSaving(false);
@@ -138,33 +150,46 @@ export default function ProfileEditPage() {
 
   const handleAvatarFile = (file: File | null) => {
     if (!file) return;
-    const url = URL.createObjectURL(file);
-    setAvatarFileName(file.name);
-    setProfile((p) => ({ ...p, avatar: url }));
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+
+        let width = img.width;
+        let height = img.height;
+        const maxSize = 400;
+
+        if (width > height) {
+          if (width > maxSize) {
+            height = Math.round((height * maxSize) / width);
+            width = maxSize;
+          }
+        } else {
+          if (height > maxSize) {
+            width = Math.round((width * maxSize) / height);
+            height = maxSize;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.7);
+        setAvatarFileName(file.name);
+        setProfile((p) => ({ ...p, avatar: compressedDataUrl }));
+      };
+      if (typeof e.target?.result === "string") {
+        img.src = e.target.result;
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
-  const pushIdeaMessage = (role: "ai" | "user", text: string) => {
-    setIdeaMessages((prev) => [...prev, { id: `${role}-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`, role, text }]);
-  };
-
-  const handleGenerateIdeas = () => {
-    const goal = pageGoal.trim() || "ファンが集まる自己紹介ページ";
-    const audience = pageAudience.trim() || "動画を見てくれる潜在フォロワー";
-    const tone = pageTone.trim() || "親しみやすくワクワク";
-
-    pushIdeaMessage("user", `目標: ${goal}\nターゲット: ${audience}\n雰囲気: ${tone}`);
-
-    const suggestions = [
-      `レイアウト案: ヒーローエリアに1フレーズのキャッチと最新動画1本を埋め込み。下に「人気3本」「はじめての人はこれ」をカードで並べる。`,
-      `CTA: フォローボタンと「次のライブ予定」を並列配置。プロフィール冒頭に1つだけ強いアクションを置く。`,
-      `コンテンツ案: ${goal} を軸に、\n- 30秒でわかる自己紹介ショート\n- 毎週の裏側Vlogプレイリスト\n- 視聴者の質問に答えるQ&Aスレッド`,
-      `トーン: ${tone} に合わせて色はテーマカラーを薄めたグラデ背景、フォントは読みやすさ優先。`,
-      `収益/誘導: 無料オファー（チェックリスト/テンプレ）をページ中段に設置し、メールやSNSリンクを横並びに。`,
-      `改善ループ: クリック/再生の多いブロックを優先表示。週1で「反応トップ3」を固定欄に差し替え。`,
-    ];
-
-    pushIdeaMessage("ai", suggestions.join("\n\n"));
-  };
+  // AI相談機能は投稿一覧保存一覧ページに移動しました
 
   if (!ready) {
     return <div style={{ padding: 20, color: backgroundColor === "light" ? "#333" : "white" }}>Loading...</div>;
@@ -223,6 +248,22 @@ export default function ProfileEditPage() {
             title="管理ページ"
           >
             ⚙
+          </button>
+          <button
+            onClick={() => router.push("/tabs/me/seller-info")}
+            style={{
+              background: `linear-gradient(135deg, ${themeColor}99, ${themeColor}80)`,
+              border: `1px solid ${themeColor}60`,
+              color: backgroundColor === "light" ? themeColor : "white",
+              padding: "8px 12px",
+              borderRadius: 6,
+              cursor: "pointer",
+              fontSize: 14,
+              fontWeight: 600,
+              boxShadow: `0 0 16px ${themeColor}33, inset 0 1px 0 ${themeColor}26`,
+            }}
+          >
+            出品者登録
           </button>
           <button
             onClick={handleSave}
@@ -400,113 +441,7 @@ export default function ProfileEditPage() {
           </div>
         </div>
 
-        {/* ページ企画設定 & AIチャット提案 */}
-        <div style={{ marginBottom: 28 }}>
-          <div style={{ marginBottom: 12, opacity: 0.9, fontSize: 14, color: themeColor, fontWeight: 700 }}>
-            ページ企画設定 & AIアイデア
-          </div>
-
-          <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", marginBottom: 12 }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <label style={{ fontSize: 12, opacity: 0.75 }}>どんなページにしたい？</label>
-              <input
-                value={pageGoal}
-                onChange={(e) => setPageGoal(e.target.value)}
-                placeholder="例: 初見さん向けの自己紹介とおすすめ動画をまとめたい"
-                style={{
-                  padding: "10px 12px",
-                  borderRadius: 10,
-                  border: `1px solid ${backgroundColor === "light" ? "rgba(0,0,0,.12)" : themeColor}40`,
-                  background: backgroundColor === "light" ? "#ffffff" : `linear-gradient(135deg, ${themeColor}1a, ${themeColor}0d)`
-                }}
-              />
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <label style={{ fontSize: 12, opacity: 0.75 }}>ターゲット/読者</label>
-              <input
-                value={pageAudience}
-                onChange={(e) => setPageAudience(e.target.value)}
-                placeholder="例: 勉強系ショートが好きな20代、海外旅行好き"
-                style={{
-                  padding: "10px 12px",
-                  borderRadius: 10,
-                  border: `1px solid ${backgroundColor === "light" ? "rgba(0,0,0,.12)" : themeColor}40`,
-                  background: backgroundColor === "light" ? "#ffffff" : `linear-gradient(135deg, ${themeColor}1a, ${themeColor}0d)`
-                }}
-              />
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <label style={{ fontSize: 12, opacity: 0.75 }}>雰囲気/トーン</label>
-              <input
-                value={pageTone}
-                onChange={(e) => setPageTone(e.target.value)}
-                placeholder="例: 親しみやすく、ワクワク、ポジティブ"
-                style={{
-                  padding: "10px 12px",
-                  borderRadius: 10,
-                  border: `1px solid ${backgroundColor === "light" ? "rgba(0,0,0,.12)" : themeColor}40`,
-                  background: backgroundColor === "light" ? "#ffffff" : `linear-gradient(135deg, ${themeColor}1a, ${themeColor}0d)`
-                }}
-              />
-            </div>
-          </div>
-
-          <button
-            onClick={handleGenerateIdeas}
-            style={{
-              padding: "12px 16px",
-              borderRadius: 10,
-              border: `1px solid ${themeColor}80`,
-              background: `linear-gradient(135deg, ${themeColor}bf, ${themeColor}a6)`,
-              color: "white",
-              fontWeight: 700,
-              cursor: "pointer",
-              boxShadow: `0 10px 24px ${themeColor}33`,
-              marginBottom: 12,
-            }}
-          >
-            AIに提案してもらう
-          </button>
-
-          <div
-            style={{
-              borderRadius: 12,
-              border: `1px solid ${backgroundColor === "light" ? "rgba(0,0,0,.08)" : themeColor}40`,
-              background: backgroundColor === "light"
-                ? `linear-gradient(135deg, ${themeColor}04, ${themeColor}08)`
-                : `linear-gradient(135deg, ${themeColor}18, ${themeColor}0d)`,
-              padding: 12,
-              display: "flex",
-              flexDirection: "column",
-              gap: 10,
-              maxHeight: 240,
-              overflowY: "auto",
-            }}
-          >
-            {ideaMessages.map((m) => (
-              <div
-                key={m.id}
-                style={{
-                  alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-                  maxWidth: "92%",
-                  padding: "10px 12px",
-                  borderRadius: 10,
-                  background: m.role === "user"
-                    ? backgroundColor === "light" ? "#ffffff" : `linear-gradient(135deg, ${themeColor}10, ${themeColor}05)`
-                    : backgroundColor === "light" ? `${themeColor}12` : `linear-gradient(135deg, ${themeColor}22, ${themeColor}12)`,
-                  border: `1px solid ${backgroundColor === "light" ? "rgba(0,0,0,.08)" : themeColor}30`,
-                  color: backgroundColor === "light" ? "#333" : "white",
-                  whiteSpace: "pre-wrap",
-                  lineHeight: 1.5,
-                  fontSize: 12,
-                  boxShadow: backgroundColor === "light" ? "0 2px 8px rgba(0,0,0,.06)" : `0 4px 14px ${themeColor}1f`,
-                }}
-              >
-                {m.text}
-              </div>
-            ))}
-          </div>
-        </div>
+        {/* AI相談機能は投稿一覧・保存一覧ページに移動しました */}
 
         {/* プロフィールプレビュー */}
         <div style={{ marginBottom: 32 }}>

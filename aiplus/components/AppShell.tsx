@@ -9,7 +9,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
     <div
       style={{
         minHeight: "100vh",
-        background: "radial-gradient(ellipse at 60% 10%, #10162a 0%, #050814 100%)",
+        background: "transparent",
         color: "#fff",
         fontFamily: "var(--font-geist-sans, sans-serif)",
         position: "relative",

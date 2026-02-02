@@ -158,7 +158,9 @@ export default function CutPage() {
         localStorage.removeItem(CUT_CONFIG_KEY);
       }
     } catch {}
-    router.push("/upload/editor");
+    // meta ページが cut ページから来たことを記録
+    localStorage.setItem("metaPageReferrer", "/upload/cut");
+    router.push("/upload/meta");
   };
 
   const currentVideoUrl = videoUrl || FALLBACK_VIDEO;
@@ -185,7 +187,11 @@ export default function CutPage() {
           gap: 8,
         }}
       >
-        <button onClick={() => router.push("/upload/editor")} style={{ background: "transparent", border: "none", color: themeColor, cursor: "pointer", fontSize: 18 }}>
+        <button onClick={() => {
+          const referrer = localStorage.getItem("cutPageReferrer") || "/upload/editor";
+          localStorage.removeItem("cutPageReferrer");
+          router.push(referrer);
+        }} style={{ background: "transparent", border: "none", color: themeColor, cursor: "pointer", fontSize: 18 }}>
           ←
         </button>
         <div style={{ fontWeight: "bold", color: themeColor, textShadow: `0 0 16px ${themeColor}66`, fontSize: 18 }}>

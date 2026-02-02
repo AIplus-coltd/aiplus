@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { hybridGet, hybridSet } from "@/lib/hybrid-storage";
 
 type Settings = {
   privacy: "public" | "private" | "friends";
@@ -21,27 +22,30 @@ export default function SettingsPage() {
   const [backgroundColor, setBackgroundColor] = useState<"dark" | "light">("light");
 
   useEffect(() => {
-    // ローカルストレージから設定を取得
-    const savedSettings = localStorage.getItem("appSettings");
-    if (savedSettings) {
-      const parsed = JSON.parse(savedSettings);
-      setSettings(parsed);
-      
-      // テーマ色を更新
-      const themeMap: Record<string, string> = {
-        pink: "#2b7ba8",
-        blue: "#2b7ba8",
-        green: "#2b7ba8",
-        purple: "#2b7ba8",
-      };
-      setThemeColor(themeMap[parsed.themeColor] || "#2b7ba8");
-      setBackgroundColor(parsed.backgroundColor || "light");
-    }
+    const init = async () => {
+      const savedSettings = await hybridGet("appSettings");
+      if (savedSettings) {
+        const parsed = savedSettings;
+        setSettings(parsed);
+
+        // テーマ色を更新
+        const themeMap: Record<string, string> = {
+          pink: "#2b7ba8",
+          blue: "#2b7ba8",
+          green: "#2b7ba8",
+          purple: "#2b7ba8",
+        };
+        setThemeColor(themeMap[parsed.themeColor] || "#2b7ba8");
+        setBackgroundColor(parsed.backgroundColor || "light");
+      }
+    };
+    init();
   }, []);
 
   const handleSave = () => {
     setIsSaving(true);
     localStorage.setItem("appSettings", JSON.stringify(settings));
+    hybridSet("appSettings", settings).catch(() => null);
     
     // カスタムイベントをディスパッチしてテーマを再適用
     window.dispatchEvent(new CustomEvent("themeChanged", { detail: settings }));
@@ -359,7 +363,12 @@ export default function SettingsPage() {
             </div>
 
             <button
-              onClick={() => {
+              onClick={async () => {
+                try {
+                  await fetch("/api/auth/logout", { method: "POST" });
+                } catch {
+                  // ignore
+                }
                 localStorage.removeItem("userProfile");
                 localStorage.removeItem("mockVideos");
                 localStorage.removeItem("appSettings");
@@ -368,7 +377,6 @@ export default function SettingsPage() {
                 localStorage.removeItem("editorSession");
                 localStorage.removeItem("editorCutConfig");
                 sessionStorage.removeItem("currentUser");
-                // ページリロードしてからログインページへ
                 setTimeout(() => {
                   router.replace("/login");
                   window.location.reload();
@@ -392,6 +400,33 @@ export default function SettingsPage() {
               <span>ログアウト</span>
               <span style={{ opacity: 0.8 }}>→</span>
             </button>
+
+            {/* 退会ボタン＋説明 */}
+            <button
+              onClick={() => router.push("/settings/delete-account")}
+              style={{
+                marginTop: 12,
+                padding: 12,
+                borderRadius: 10,
+                border: "1.5px solid #ff6b6b",
+                background: "linear-gradient(135deg, #ff6b6b22, #9d4edd11)",
+                color: "#ff6b6b",
+                fontWeight: 700,
+                fontSize: 15,
+                cursor: "pointer",
+                boxShadow: "0 2px 12px #ff6b6b22",
+                transition: "all 0.2s cubic-bezier(.4,0,.2,1)",
+                width: "100%",
+                textAlign: "center",
+              }}
+            >
+              退会（アカウント削除）
+            </button>
+            <div style={{ fontSize: 12, color: backgroundColor === "light" ? "#b71c1c" : "#ffbdbd", lineHeight: 1.6, marginTop: 4 }}>
+              <b>退会</b>は全データを即時削除します。<br />
+              <span style={{ color: "#ff6b6b" }}>一度退会すると元に戻せません。</span><br />
+              <span style={{ color: "#38BDF8" }}>ログアウト</span>はデータを保管したまま一時的に利用を停止できます。
+            </div>
           </div>
         </div>
       </div>

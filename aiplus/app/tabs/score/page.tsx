@@ -75,8 +75,18 @@ export default function ScorePage() {
     // ビデオデータを取得
     const mockVideos = localStorage.getItem("mockVideos");
     let videos: Video[] = mockVideos ? JSON.parse(mockVideos) : [];
-    const currentUserId = "test-user-" + (localStorage.getItem("userId") || "default");
-    let userVideos = videos.filter((v: Video) => v.user_id.startsWith("test-user-"));
+    let currentUserId: string | null = null;
+    const currentUserRaw = sessionStorage.getItem("currentUser") || localStorage.getItem("currentUser");
+    if (currentUserRaw) {
+      try {
+        const parsed = JSON.parse(currentUserRaw);
+        currentUserId = parsed?.id || null;
+      } catch {}
+    }
+    if (!currentUserId) {
+      currentUserId = localStorage.getItem("userId") || "default-user";
+    }
+    let userVideos = videos.filter((v: Video) => v.user_id === currentUserId);
 
     // 初回データが無い場合はサンプルを3件生成
     if (userVideos.length === 0) {
@@ -193,7 +203,7 @@ export default function ScorePage() {
   };
 
   const currentVideo = myVideos[currentSlideIndex];
-  const myVideoRanking = [...myVideos].sort((a, b) => (b.aiScore || 0) - (a.aiScore || 0));
+  const myVideoRanking = [...myVideos].sort((a, b) => (b.aiScore || 0) - (a.aiScore || 0)).slice(0, 10);
 
   return (
     <div
@@ -463,7 +473,7 @@ export default function ScorePage() {
         {myVideoRanking.length > 0 && (
           <div style={{ marginBottom: 28 }}>
             <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, opacity: 0.9 }}>
-              📈 自分の投稿ランキング
+              📈 自分の投稿ランキング TOP10
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {myVideoRanking.map((video, index) => (
@@ -523,12 +533,12 @@ export default function ScorePage() {
         {/* ランキングセクション */}
         <div>
           <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 16, opacity: 0.9 }}>
-            🏆 全ユーザーランキング
+            🏆 全ユーザーランキング TOP5
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {rankings.length > 0 ? (
-              rankings.map((user) => (
+              rankings.slice(0, 5).map((user) => (
                 <div
                   key={user.user_id}
                   style={{
