@@ -15,8 +15,6 @@ export default function CameraPage() {
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const isAnimatingRef = useRef<boolean>(false);
-  const zoomLevelRef = useRef(1);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [isRecording, setIsRecording] = useState(false);
   const [recordedVideoUrl, setRecordedVideoUrl] = useState<string>("");
@@ -26,6 +24,7 @@ export default function CameraPage() {
   const [recordingTime, setRecordingTime] = useState(0);
   const [currentFilter, setCurrentFilter] = useState<FilterType>("none");
   const [showFilterMenu, setShowFilterMenu] = useState(false);
+  const zoomLevelRef = useRef(1);
 
   useEffect(() => {
     const savedSettings = localStorage.getItem("appSettings");
@@ -88,7 +87,46 @@ export default function CameraPage() {
   const startRecording = () => {
     if (!streamRef.current) return;
     
-    const mediaRecorder = new MediaRecorder(streamRef.current, {
+    chunksRef.current = [];
+    
+    // canvasがあればビデオとcanvasを合成したstreamを作成
+    let recordStream = streamRef.current;
+    
+    if (currentFilter !== "none" && canvasRef.current && videoRef.current) {
+      // 合成用のキャンバスを作成
+      const compositeCanvas = document.createElement('canvas');
+      const video = videoRef.current;
+      compositeCanvas.width = video.videoWidth || 1280;
+      compositeCanvas.height = video.videoHeight || 720;
+      const ctx = compositeCanvas.getContext('2d');
+      
+      if (ctx) {
+        // フレームごとに描画
+        const drawFrame = () => {
+          if (!isRecording) return;
+          
+          // ビデオを描画
+          ctx.drawImage(video, 0, 0, compositeCanvas.width, compositeCanvas.height);
+          
+          // フィルターのキャンバスを上に描画
+          if (canvasRef.current) {
+            ctx.drawImage(canvasRef.current, 0, 0, compositeCanvas.width, compositeCanvas.height);
+          }
+          
+          requestAnimationFrame(drawFrame);
+        };
+        drawFrame();
+        
+        // 合成キャンバスのstreamを取得
+        const canvasStream = compositeCanvas.captureStream(30);
+        // オーディオトラックを追加
+        const audioTracks = streamRef.current.getAudioTracks();
+        audioTracks.forEach(track => canvasStream.addTrack(track));
+        recordStream = canvasStream;
+      }
+    }
+    
+    const mediaRecorder = new MediaRecorder(recordStream, {
       mimeType: "video/webm;codecs=vp9",
     });
 
@@ -109,11 +147,11 @@ export default function CameraPage() {
       setRecordingTime(0);
     };
 
-    chunksRef.current = [];
     mediaRecorder.start();
     mediaRecorderRef.current = mediaRecorder;
     setIsRecording(true);
     
+    // 録画時間のタイマー
     setRecordingTime(0);
     timerRef.current = setInterval(() => {
       setRecordingTime((prev) => prev + 1);
@@ -127,75 +165,11 @@ export default function CameraPage() {
     }
   };
 
-  const goToCut = async () => {
-    console.log("goToCut called, recordedVideoUrl:", !!recordedVideoUrl);
-    
-    if (!recordedVideoUrl) {
-      alert("動画を撮影してください");
-      return;
-    }
-    
-    try {
-      const session = {
-        videoUrl: recordedVideoUrl,
-        thumbnailDataUrl: recordedVideoUrl,
-      };
-      console.log("Saving session to localStorage...");
-      localStorage.setItem("editorSession", JSON.stringify(session));
-      localStorage.setItem("metaPageReferrer", "/upload/camera");
-      console.log("✓ Session saved, navigating to /upload/meta");
-      
-      // ルーター遷移
-      await router.push("/upload/meta");
-      console.log("✓ Navigation completed");
-    } catch (err) {
-      console.error("Error in goToCut:", err);
-      alert("エラーが発生しました");
-    }
-  };
-
-  const goToCutLive = () => {
-    // ライブのカメラストリームをカット編集へ渡す（スナップショット取得）
-    if (!videoRef.current) return;
-    
-    const canvas = document.createElement("canvas");
-    canvas.width = videoRef.current.videoWidth;
-    canvas.height = videoRef.current.videoHeight;
-    const ctx = canvas.getContext("2d");
-    if (ctx) {
-      ctx.drawImage(videoRef.current, 0, 0);
-      const snapshotUrl = canvas.toDataURL("image/jpeg");
-      
-      const cutConfig = {
-        videoUrl: snapshotUrl,
-        segments: [],
-        applySegmentsPreview: false,
-      };
-      localStorage.setItem("editorCutConfig", JSON.stringify(cutConfig));
-      localStorage.setItem("cutPageReferrer", "/upload/camera");
-      router.push("/upload/cut");
-    }
-  };
-
   const saveVideo = () => {
     if (!recordedVideoUrl) return;
     
-    let userId: string | null = null;
-    const currentUserRaw = sessionStorage.getItem("currentUser") || localStorage.getItem("currentUser");
-    if (currentUserRaw) {
-      try {
-        const parsed = JSON.parse(currentUserRaw);
-        userId = parsed?.id || parsed?.user_id || null;
-      } catch {}
-    }
-    if (!userId) {
-      userId = localStorage.getItem("me");
-    }
-    if (!userId) {
-      userId = "demo-user";
-      localStorage.setItem("me", userId);
-    }
-
+    // ローカルストレージに保存（実際にはサーバーにアップロード）
+    const userId = "user123"; // 実際にはログインユーザーIDを取得
     const videoData = {
       id: `video-${Date.now()}`,
       user_id: userId,
@@ -209,97 +183,14 @@ export default function CameraPage() {
     videos.push(videoData);
     localStorage.setItem(`videos_${userId}`, JSON.stringify(videos));
 
-    const existingFeed = localStorage.getItem("mockVideos");
-    const feedVideos = existingFeed ? JSON.parse(existingFeed) : [];
-    feedVideos.unshift(videoData);
-    localStorage.setItem("mockVideos", JSON.stringify(feedVideos));
-
     alert("動画を保存しました！");
     router.push("/tabs/me/view");
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const isVideo = file.type.startsWith("video/");
-    if (!isVideo) {
-      alert("動画ファイルを選択してください");
-      return;
-    }
-
-    const url = URL.createObjectURL(file);
-    setRecordedVideoUrl(url);
-    stopCamera();
-    console.log("✓ Video file selected:", file.name);
-  };
-
-  const openFileDialog = () => {
-    fileInputRef.current?.click();
   };
 
   const retake = () => {
     setRecordedVideoUrl("");
     startCamera();
   };
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-  };
-
-  const zoomIn = () => {
-    zoomLevelRef.current = Math.min(zoomLevelRef.current + 0.5, 3);
-  };
-
-  const zoomOut = () => {
-    zoomLevelRef.current = Math.max(zoomLevelRef.current - 0.5, 1);
-  };
-
-  const detectAndDrawFilter = useCallback(async function draw() {
-    if (!isAnimatingRef.current) return;
-    
-    if (!videoRef.current || !canvasRef.current || currentFilter === "none") {
-      animationRef.current = requestAnimationFrame(draw);
-      return;
-    }
-
-    try {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-
-      if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-      }
-      
-      if (currentFilter === "beautify") {
-        ctx.filter = "brightness(1.08) contrast(1.05) saturate(1.1)";
-      } else if (currentFilter === "monochrome") {
-        ctx.filter = "grayscale(1)";
-      } else {
-        ctx.filter = "none";
-      }
-      
-      const currentZoom = zoomLevelRef.current;
-      const sourceWidth = video.videoWidth / currentZoom;
-      const sourceHeight = video.videoHeight / currentZoom;
-      const sourceX = (video.videoWidth - sourceWidth) / 2;
-      const sourceY = (video.videoHeight - sourceHeight) / 2;
-      
-      ctx.drawImage(video, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, video.videoWidth, video.videoHeight);
-      ctx.filter = "none";
-    } catch (err) {
-      console.error("フィルター適用エラー:", err);
-    }
-
-    if (isAnimatingRef.current) {
-      animationRef.current = requestAnimationFrame(draw);
-    }
-  }, [currentFilter]);
 
   useEffect(() => {
     startCamera();
@@ -316,13 +207,79 @@ export default function CameraPage() {
     };
   }, []);
 
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  const zoomIn = () => {
+    zoomLevelRef.current = Math.min(zoomLevelRef.current + 0.5, 3);
+  };
+
+  const zoomOut = () => {
+    zoomLevelRef.current = Math.max(zoomLevelRef.current - 0.5, 1);
+  };
+
+  // 顔検出とフィルター適用
+  const detectAndDrawFilter = useCallback(async () => {
+    if (!isAnimatingRef.current) return;
+    
+    if (!videoRef.current || !canvasRef.current || currentFilter === "none") {
+      animationRef.current = requestAnimationFrame(detectAndDrawFilter);
+      return;
+    }
+
+    try {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      // canvasのサイズをvideoと同じにする
+      if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+      }
+      
+      // フィルターをセット
+      if (currentFilter === "beautify") {
+        ctx.filter = "brightness(1.08) contrast(1.05) saturate(1.1)";
+      } else if (currentFilter === "monochrome") {
+        ctx.filter = "grayscale(1)";
+      } else {
+        ctx.filter = "none";
+      }
+      
+      // ズーム効果を適用（useRef から最新の値を取得）
+      const currentZoom = zoomLevelRef.current;
+      const sourceWidth = video.videoWidth / currentZoom;
+      const sourceHeight = video.videoHeight / currentZoom;
+      const sourceX = (video.videoWidth - sourceWidth) / 2;
+      const sourceY = (video.videoHeight - sourceHeight) / 2;
+      
+      // ビデオフレームを描画（フィルター付き）
+      ctx.drawImage(video, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, video.videoWidth, video.videoHeight);
+      ctx.filter = "none";
+    } catch (err) {
+      console.error("フィルター適用エラー:", err);
+    }
+
+    if (isAnimatingRef.current) {
+      animationRef.current = requestAnimationFrame(detectAndDrawFilter);
+    }
+  }, [currentFilter]);
+
+  // フィルターが変更されたら描画開始
   useEffect(() => {
+    // 前のアニメーションを完全に停止
     const stopAnimation = () => {
       isAnimatingRef.current = false;
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
         animationRef.current = null;
       }
+      // canvasをクリア
       if (canvasRef.current) {
         const ctx = canvasRef.current.getContext("2d");
         if (ctx) {
@@ -333,6 +290,7 @@ export default function CameraPage() {
 
     stopAnimation();
 
+    // フィルターが有効な場合のみ新しい描画ループを開始
     if (currentFilter !== "none" && cameraActive) {
       isAnimatingRef.current = true;
       detectAndDrawFilter();
@@ -343,8 +301,19 @@ export default function CameraPage() {
     };
   }, [currentFilter, cameraActive, detectAndDrawFilter]);
 
+  // 美肌フィルター（シンプル処理）
+  const applyBeautifyFilter = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
+    // 空の関数（filterは描画前にセット済み）
+  };
+
+  // モノクロフィルター
+  const applyMonochromeFilter = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
+    // 空の関数（filterは描画前にセット済み）
+  };
+
   return (
     <div style={{ minHeight: "100vh", background: "#000", color: "#fff", display: "flex", flexDirection: "column" }}>
+      {/* ヘッダー */}
       <div
         style={{
           padding: "12px 16px",
@@ -353,62 +322,23 @@ export default function CameraPage() {
           justifyContent: "space-between",
           background: "rgba(0,0,0,0.7)",
           backdropFilter: "blur(10px)",
-          gap: 12,
         }}
       >
         <button
           onClick={() => router.back()}
           style={{
-            padding: "10px 18px",
-            borderRadius: 8,
             background: "transparent",
-            border: "1px solid rgba(255,255,255,0.3)",
+            border: "none",
             color: "#fff",
-            fontSize: 16,
-            fontWeight: 700,
+            fontSize: 18,
             cursor: "pointer",
           }}
         >
           ← 戻る
         </button>
-        <button
-          onClick={openFileDialog}
-          style={{
-            padding: "10px 14px",
-            borderRadius: 8,
-            background: "transparent",
-            border: "1px solid rgba(255,255,255,0.3)",
-            color: "#fff",
-            fontSize: 18,
-            cursor: "pointer",
-          }}
-          title="既存の動画を選択"
-        >
-          📁
-        </button>
-        <div style={{ flex: 1 }} />
-        <button
-          onClick={() => {
-            console.log("Button clicked! recordedVideoUrl:", !!recordedVideoUrl);
-            goToCut();
-          }}
-          style={{
-            padding: "10px 18px",
-            borderRadius: 8,
-            background: recordedVideoUrl ? "#fff" : "rgba(200,200,200,0.3)",
-            border: recordedVideoUrl ? "2px solid #fff" : "2px solid #999",
-            color: recordedVideoUrl ? "#000" : "#999",
-            cursor: recordedVideoUrl ? "pointer" : "not-allowed",
-            fontSize: 16,
-            fontWeight: 700,
-            boxShadow: recordedVideoUrl ? "0 4px 12px rgba(255,255,255,0.6)" : "none",
-            opacity: recordedVideoUrl ? 1 : 0.6,
-          }}
-        >
-          次へ →
-        </button>
       </div>
 
+      {/* カメラプレビュー / 録画済み動画 */}
       <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
         {!recordedVideoUrl ? (
           <>
@@ -454,6 +384,7 @@ export default function CameraPage() {
                 {formatTime(recordingTime)}
               </div>
             )}
+            {/* 右側の縦並びボタン */}
             <div
               style={{
                 position: "absolute",
@@ -490,6 +421,27 @@ export default function CameraPage() {
                   🔄
                 </button>
               )}
+              <button
+                onClick={() => router.push("/upload/cut")}
+                style={{
+                  width: 50,
+                  height: 50,
+                  borderRadius: "50%",
+                  border: "none",
+                  background: "rgba(0,0,0,0.6)",
+                  backdropFilter: "blur(10px)",
+                  color: "#fff",
+                  cursor: "pointer",
+                  fontSize: 24,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+                }}
+                title="カット編集"
+              >
+                ✂️
+              </button>
               <button
                 onClick={() => setShowFilterMenu(!showFilterMenu)}
                 style={{
@@ -555,34 +507,9 @@ export default function CameraPage() {
               >
                 🔍➕
               </button>
-              {cameraActive && !recordedVideoUrl && (
-                <button
-                  onClick={() => {
-                    setShowFilterMenu(false);
-                    goToCutLive();
-                  }}
-                  style={{
-                    width: 50,
-                    height: 50,
-                    borderRadius: "50%",
-                    border: "none",
-                    background: "rgba(255,105,180,0.3)",
-                    backdropFilter: "blur(10px)",
-                    color: "#ff69b4",
-                    cursor: "pointer",
-                    fontSize: 24,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    boxShadow: "0 0 12px rgba(255,105,180,0.6)",
-                  }}
-                  title="カット編集"
-                >
-                  ✂️
-                </button>
-              )}
             </div>
             
+            {/* フィルター選択メニュー */}
             {showFilterMenu && (
               <div
                 style={{
@@ -634,6 +561,7 @@ export default function CameraPage() {
               </div>
             )}
             
+            {/* ARフィルターのキャンバス */}
             {currentFilter !== "none" && (
               <canvas
                 ref={canvasRef}
@@ -662,9 +590,10 @@ export default function CameraPage() {
         )}
       </div>
 
+      {/* コントロール */}
       <div
         style={{
-          padding: "20px 16px 24px",
+          padding: "24px 16px 32px",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -681,11 +610,11 @@ export default function CameraPage() {
                   width: 80,
                   height: 80,
                   borderRadius: "50%",
-                  background: "linear-gradient(135deg, #00d4ff 0%, #0088cc 100%)",
+                  background: themeColor,
                   border: "4px solid #fff",
                   cursor: "pointer",
                   fontSize: 24,
-                  boxShadow: "0 6px 24px rgba(0,212,255,0.6)",
+                  boxShadow: `0 4px 20px ${themeColor}80`,
                 }}
               >
                 ⬤
@@ -725,23 +654,20 @@ export default function CameraPage() {
               撮り直し
             </button>
             <button
-              onClick={() => {
-                console.log("Bottom button clicked! recordedVideoUrl:", !!recordedVideoUrl);
-                goToCut();
-              }}
+              onClick={saveVideo}
               style={{
                 padding: "12px 32px",
                 borderRadius: 8,
-                background: "#fff",
+                background: themeColor,
                 border: "none",
-                color: "#000",
+                color: "#fff",
                 cursor: "pointer",
                 fontSize: 16,
                 fontWeight: 700,
-                boxShadow: "0 4px 16px rgba(255,255,255,0.6)",
+                boxShadow: `0 4px 16px ${themeColor}80`,
               }}
             >
-              次へ
+              保存
             </button>
           </>
         )}
@@ -753,15 +679,6 @@ export default function CameraPage() {
           50% { opacity: 0.5; }
         }
       `}</style>
-
-      {/* 隠しのファイル入力 */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="video/*"
-        onChange={handleFileSelect}
-        style={{ display: "none" }}
-      />
     </div>
   );
 }

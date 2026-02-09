@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 const CUT_CONFIG_KEY = "editorCutConfig";
@@ -14,46 +14,58 @@ type CutConfig = {
   applySegmentsPreview?: boolean;
 };
 
-export default function CutPage() {
-  const router = useRouter();
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [themeColor, setThemeColor] = useState<string>("#2b7ba8");
-  const [backgroundColor, setBackgroundColor] = useState<"light">("light");
-  const [videoUrl, setVideoUrl] = useState<string>("");
-  const [segments, setSegments] = useState<Segment[]>([]);
-  const [segmentsHistory, setSegmentsHistory] = useState<Segment[][]>([]);
-  const [applySegmentsPreview, setApplySegmentsPreview] = useState(false);
-  const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
-  const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
-  const [error, setError] = useState("");
-  const [videoDuration, setVideoDuration] = useState(0);
-
-  useEffect(() => {
-    const savedSettings = localStorage.getItem("appSettings");
-    const settings = savedSettings ? JSON.parse(savedSettings) : {};
+const getInitialThemeColor = () => {
+  if (typeof window === "undefined") return "#2b7ba8";
+  const savedSettings = localStorage.getItem("appSettings");
+  if (!savedSettings) return "#2b7ba8";
+  try {
+    const settings = JSON.parse(savedSettings);
     const color = settings.themeColor || "blue";
-    const bgColor = settings.backgroundColor || "light";
     const themeMap: Record<string, string> = {
       pink: "#2b7ba8",
       blue: "#2b7ba8",
       green: "#2b7ba8",
       purple: "#2b7ba8",
     };
-    setThemeColor(themeMap[color] || "#2b7ba8");
-    setBackgroundColor(bgColor);
-  }, []);
+    return themeMap[color] || "#2b7ba8";
+  } catch {
+    return "#2b7ba8";
+  }
+};
 
-  useEffect(() => {
-    const saved = localStorage.getItem(CUT_CONFIG_KEY);
-    if (saved) {
-      try {
-        const parsed: CutConfig = JSON.parse(saved);
-        if (parsed.videoUrl) setVideoUrl(parsed.videoUrl);
-        if (Array.isArray(parsed.segments)) setSegments(parsed.segments);
-        if (typeof parsed.applySegmentsPreview === "boolean") setApplySegmentsPreview(parsed.applySegmentsPreview);
-      } catch {}
-    }
-  }, []);
+const getInitialCutConfig = (): Required<CutConfig> => {
+  if (typeof window === "undefined") {
+    return { videoUrl: "", segments: [], applySegmentsPreview: false };
+  }
+  const saved = localStorage.getItem(CUT_CONFIG_KEY);
+  if (!saved) {
+    return { videoUrl: "", segments: [], applySegmentsPreview: false };
+  }
+  try {
+    const parsed: CutConfig = JSON.parse(saved);
+    return {
+      videoUrl: parsed.videoUrl || "",
+      segments: Array.isArray(parsed.segments) ? parsed.segments : [],
+      applySegmentsPreview: typeof parsed.applySegmentsPreview === "boolean" ? parsed.applySegmentsPreview : false,
+    };
+  } catch {
+    return { videoUrl: "", segments: [], applySegmentsPreview: false };
+  }
+};
+
+export default function CutPage() {
+  const router = useRouter();
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [themeColor, setThemeColor] = useState<string>(() => getInitialThemeColor());
+  const [initialCutConfig] = useState<Required<CutConfig>>(() => getInitialCutConfig());
+  const [videoUrl, setVideoUrl] = useState<string>(initialCutConfig.videoUrl);
+  const [segments, setSegments] = useState<Segment[]>(initialCutConfig.segments);
+  const [segmentsHistory, setSegmentsHistory] = useState<Segment[][]>([]);
+  const [applySegmentsPreview, setApplySegmentsPreview] = useState(initialCutConfig.applySegmentsPreview);
+  const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
+  const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
+  const [error, setError] = useState("");
+  const [videoDuration, setVideoDuration] = useState(0);
 
   const ensureInitialSegment = () => {
     if (!videoRef.current) return;

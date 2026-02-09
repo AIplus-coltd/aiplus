@@ -10,6 +10,8 @@ type Product = {
   image: string;
   description: string;
   category: string;
+  sellerId?: string;
+  sellerName?: string;
 };
 
 export default function ProductDetailPage() {
@@ -34,6 +36,59 @@ export default function ProductDetailPage() {
   const [cardNumber, setCardNumber] = useState("");
   const [cardExpiry, setCardExpiry] = useState("");
   const [cardCVC, setCardCVC] = useState("");
+
+  const PLATFORM_FEE_RATE = 0.1;
+
+  const resolveCurrentUserId = () => {
+    let userId: string | null = null;
+    const currentUserRaw = sessionStorage.getItem("currentUser") || localStorage.getItem("currentUser");
+    if (currentUserRaw) {
+      try {
+        const parsed = JSON.parse(currentUserRaw);
+        userId = parsed?.id || parsed?.user_id || null;
+      } catch {}
+    }
+    if (!userId) userId = localStorage.getItem("me");
+    if (!userId) {
+      userId = "demo-user";
+      localStorage.setItem("me", userId);
+    }
+    return userId;
+  };
+
+  const recordSaleAndPayout = (orderId: string, totalAmount: number) => {
+    if (!product?.sellerId) return;
+    const feeAmount = Math.floor(totalAmount * PLATFORM_FEE_RATE);
+    const netAmount = Math.max(0, totalAmount - feeAmount);
+    const buyerId = resolveCurrentUserId();
+
+    const salesRaw = localStorage.getItem("sales") || "[]";
+    const sales = JSON.parse(salesRaw);
+    if (!sales.find((s: any) => s.orderId === orderId)) {
+      sales.push({
+        id: "sale-" + Date.now(),
+        productId: product.id,
+        sellerId: product.sellerId,
+        sellerName: product.sellerName || "",
+        buyerId,
+        orderId,
+        amount: totalAmount,
+        feeAmount,
+        netAmount,
+        buyerName: buyerName || "Anonymous",
+        buyerEmail: buyerEmail || "",
+        buyerAddress: buyerAddress || "",
+        status: "completed",
+        createdAt: new Date().toISOString(),
+      });
+      localStorage.setItem("sales", JSON.stringify(sales));
+    }
+
+    const balancesRaw = localStorage.getItem("sellerBalances") || "{}";
+    const balances = JSON.parse(balancesRaw);
+    balances[product.sellerId] = (balances[product.sellerId] || 0) + netAmount;
+    localStorage.setItem("sellerBalances", JSON.stringify(balances));
+  };
 
   useEffect(() => {
     // テーマ設定を取得
@@ -110,6 +165,7 @@ export default function ProductDetailPage() {
 
     // 決済APIを呼び出し
     try {
+      const totalAmount = product.price * quantity;
       const response = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -118,7 +174,7 @@ export default function ProductDetailPage() {
           productName: product.name,
           price: product.price,
           quantity,
-          totalAmount: product.price * quantity,
+          totalAmount,
           buyerInfo: {
             name: buyerName,
             email: buyerEmail,
@@ -136,6 +192,7 @@ export default function ProductDetailPage() {
       const data = await response.json();
 
       if (response.ok) {
+        recordSaleAndPayout(data?.orderId || "ORD-LOCAL-" + Date.now(), totalAmount);
         setCheckoutStep("complete");
       } else {
         alert(data.error || "決済に失敗しました");

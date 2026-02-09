@@ -9,6 +9,8 @@ type CartItem = {
   price: number;
   quantity: number;
   image?: string;
+  sellerId?: string;
+  sellerName?: string;
 };
 
 export default function CartPage() {
@@ -28,6 +30,63 @@ export default function CartPage() {
   const [cardNumber, setCardNumber] = useState("");
   const [cardExpiry, setCardExpiry] = useState("");
   const [cardCVC, setCardCVC] = useState("");
+
+  const PLATFORM_FEE_RATE = 0.1;
+
+  const resolveCurrentUserId = () => {
+    let userId: string | null = null;
+    const currentUserRaw = sessionStorage.getItem("currentUser") || localStorage.getItem("currentUser");
+    if (currentUserRaw) {
+      try {
+        const parsed = JSON.parse(currentUserRaw);
+        userId = parsed?.id || parsed?.user_id || null;
+      } catch {}
+    }
+    if (!userId) userId = localStorage.getItem("me");
+    if (!userId) {
+      userId = "demo-user";
+      localStorage.setItem("me", userId);
+    }
+    return userId;
+  };
+
+  const recordSalesAndPayouts = (orderId: string) => {
+    const buyerId = resolveCurrentUserId();
+    const salesRaw = localStorage.getItem("sales") || "[]";
+    const sales = JSON.parse(salesRaw);
+
+    const balancesRaw = localStorage.getItem("sellerBalances") || "{}";
+    const balances = JSON.parse(balancesRaw);
+
+    cart.forEach((item) => {
+      if (!item.sellerId) return;
+      const itemTotal = item.price * item.quantity;
+      const feeAmount = Math.floor(itemTotal * PLATFORM_FEE_RATE);
+      const netAmount = Math.max(0, itemTotal - feeAmount);
+
+      sales.push({
+        id: "sale-" + Date.now() + "-" + Math.random().toString(36).slice(2),
+        productId: item.id,
+        sellerId: item.sellerId,
+        sellerName: item.sellerName || "",
+        buyerId,
+        orderId,
+        amount: itemTotal,
+        feeAmount,
+        netAmount,
+        buyerName: buyerName || "Anonymous",
+        buyerEmail: buyerEmail || "",
+        buyerAddress: buyerAddress || "",
+        status: "completed",
+        createdAt: new Date().toISOString(),
+      });
+
+      balances[item.sellerId] = (balances[item.sellerId] || 0) + netAmount;
+    });
+
+    localStorage.setItem("sales", JSON.stringify(sales));
+    localStorage.setItem("sellerBalances", JSON.stringify(balances));
+  };
 
   useEffect(() => {
     const stored = localStorage.getItem("cart");
@@ -95,6 +154,7 @@ export default function CartPage() {
       const data = await response.json();
 
       if (response.ok) {
+        recordSalesAndPayouts(data?.orderId || "ORD-LOCAL-" + Date.now());
         setCheckoutStep("complete");
         clearCart();
       } else {

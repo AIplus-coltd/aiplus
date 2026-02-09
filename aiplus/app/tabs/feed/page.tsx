@@ -134,9 +134,20 @@ function FeedPage() {
     loadFeedVideos();
     setReady(true);
 
+    // テーマカラーを読み込む
+    const savedThemeColor = localStorage.getItem("themeColor");
+    console.log("フィードページ - 保存されたテーマカラー:", savedThemeColor);
+    if (savedThemeColor) {
+      setThemeColor(savedThemeColor);
+      console.log("フィードページ - テーマカラーを設定:", savedThemeColor);
+    }
+
+    // テーマカラーの変更を監視
     const handleStorage = (e: StorageEvent) => {
-      if (e.key === "mockVideos") {
-        loadFeedVideos();
+      console.log("ストレージイベント検出:", e.key, e.newValue);
+      if (e.key === "themeColor" && e.newValue) {
+        setThemeColor(e.newValue);
+        console.log("フィードページ - テーマカラーが更新されました:", e.newValue);
       }
     };
     window.addEventListener("storage", handleStorage);
@@ -485,6 +496,27 @@ function FeedPage() {
         onTouchEnd={handleTouchEnd}
         onWheel={handleWheelScroll}
       >
+        {/* 共通のSVG定義 */}
+        <svg width="0" height="0" style={{ position: "absolute", pointerEvents: "none" }}>
+          <defs>
+            <linearGradient id="aiHexGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor={themeColor} />
+              <stop offset="50%" stopColor={themeColor} opacity="0.8" />
+              <stop offset="100%" stopColor="#FACC15" />
+            </linearGradient>
+            <filter id="aiHexGlow">
+              <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
+              <feMerge>
+                <feMergeNode in="coloredBlur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+            <linearGradient id="iconGradient" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#22D3EE" />
+              <stop offset="100%" stopColor="#06B6D4" />
+            </linearGradient>
+          </defs>
+        </svg>
         {(() => {
           const sorted = activeTab === "trending"
             ? [...videos].sort((a, b) => {
@@ -603,9 +635,9 @@ function FeedPage() {
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
-                  gap: 6,
+                  gap: 10,
                   fontWeight: 700,
-                  fontSize: 13,
+                  fontSize: 15,
                   letterSpacing: 0.01,
                   color: "#38BDF8",
                   marginBottom: 2,
@@ -618,15 +650,15 @@ function FeedPage() {
                     <img
                       src={userAvatarMap[v.user_id || ""]}
                       alt="avatar"
-                      style={{ width: 20, height: 20, borderRadius: 999, objectFit: "cover", boxShadow: "0 0 6px rgba(56,189,248,.5)", display: "block" }}
+                      style={{ width: 40, height: 40, borderRadius: 999, objectFit: "cover", boxShadow: "0 0 8px rgba(56,189,248,.6)", display: "block" }}
                     />
                   ) : (
-                    <span style={{ fontSize: 16, lineHeight: 1, width: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center" }}>{userAvatarMap[v.user_id || ""]}</span>
+                    <span style={{ fontSize: 20, lineHeight: 1, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center" }}>{userAvatarMap[v.user_id || ""]}</span>
                   )
                 ) : (
-                  <span style={{ width: 20, height: 20, borderRadius: 999, background: "rgba(56,189,248,.2)", display: "inline-block" }} />
+                  <span style={{ width: 40, height: 40, borderRadius: 999, background: "rgba(56,189,248,.2)", display: "inline-block" }} />
                 )}
-                <span style={{ whiteSpace: "nowrap" }}>@{userNameMap[v.user_id || ""] ?? v.user_id?.slice(0, 10) ?? "user"}</span>
+                <span style={{ whiteSpace: "nowrap", color: themeColor, fontWeight: 600 }}>@{userNameMap[v.user_id || ""] ?? v.user_id?.slice(0, 10) ?? "user"}</span>
               </div>
               {/* タイトル */}
               <div style={{ fontSize: 15, fontWeight: 800, lineHeight: 1.3, color: "#fff", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", wordWrap: "break-word" }}>
@@ -634,7 +666,7 @@ function FeedPage() {
               </div>
               {/* 説明（2行→タップで展開） */}
               {v.description && (
-                <div style={{ fontSize: 12, fontWeight: 500, opacity: 0.85, lineHeight: 1.5, margin: "2px 0 0 0", color: "#A855F7", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: descExpanded[v.id] ? 8 : 2, WebkitBoxOrient: "vertical", wordWrap: "break-word", transition: "all 0.2s" }}>
+                <div style={{ fontSize: 12, fontWeight: 500, opacity: 0.85, lineHeight: 1.5, margin: "2px 0 0 0", color: themeColor, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: descExpanded[v.id] ? 8 : 2, WebkitBoxOrient: "vertical", wordWrap: "break-word", transition: "all 0.2s" }}>
                   {v.description}
                 </div>
               )}
@@ -667,17 +699,18 @@ function FeedPage() {
               style={{
                 position: "absolute",
                 right: 12,
-                bottom: 100,
+                bottom: 24,
                 color: backgroundColor === "light" ? "#333" : "white",
                 display: "flex",
                 flexDirection: "column",
-                gap: 16,
+                gap: 6,
                 alignItems: "center",
                 zIndex: 200,
               }}
             >
-              {/* AIスコア - 円形デザイン */}
+              {/* AIスコア - 六角形デザイン */}
               <div
+                key={`ai-score-${v.id}`}
                 style={{
                   position: "relative",
                   width: 64,
@@ -685,33 +718,25 @@ function FeedPage() {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  filter: "drop-shadow(0 6px 16px rgba(59, 130, 246, 0.35))",
+                  filter: "drop-shadow(0 0 16px rgba(34, 211, 238, 0.6)) drop-shadow(0 0 8px rgba(250, 204, 21, 0.4))",
                 }}
               >
-                <svg width="64" height="64" style={{ position: "absolute", top: 0, left: 0 }}>
-                  <defs>
-                    <linearGradient id={`score-ring-${v.id}`} x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor="#60A5FA" />
-                      <stop offset="55%" stopColor="#22D3EE" />
-                      <stop offset="100%" stopColor="#A7F3D0" />
-                    </linearGradient>
-                  </defs>
-                  {/* 薄い外周 */}
-                  <circle cx="32" cy="32" r="24" stroke="rgba(255,255,255,0.18)" strokeWidth="10" fill="none" />
-                  {/* グラデーションリング */}
-                  <circle
-                    cx="32"
-                    cy="32"
-                    r="24"
-                    stroke={`url(#score-ring-${v.id})`}
-                    strokeWidth="6"
-                    fill="none"
-                    strokeLinecap="round"
+                <svg width="64" height="64" viewBox="0 0 64 64" style={{ position: "absolute", top: 0, left: 0 }} xmlns="http://www.w3.org/2000/svg">
+                  {/* 背景六角形 */}
+                  <path
+                    d="M 32.00,4.80 L 54.63,17.40 L 54.63,42.60 L 32.00,55.20 L 9.37,42.60 L 9.37,17.40 Z"
+                    fill="#111827"
                   />
-                  {/* 内側円 */}
-                  <circle cx="32" cy="32" r="16" fill="#0B1020" stroke="rgba(255,255,255,0.2)" strokeWidth="1.5" />
-                  {/* 下部の光ドット */}
-                  <circle cx="32" cy="54" r="5.5" fill="#7DD3FC" stroke="#E0F2FE" strokeWidth="2" />
+                  {/* グラデーション六角形枠 */}
+                  <path
+                    d="M 32.00,2.00 L 56.97,16.00 L 56.97,44.00 L 32.00,58.00 L 7.03,44.00 L 7.03,16.00 Z"
+                    fill="none"
+                    stroke="url(#aiHexGradient)"
+                    strokeWidth="3.5"
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
+                    filter="url(#aiHexGlow)"
+                  />
                 </svg>
                 <div
                   style={{
@@ -721,27 +746,30 @@ function FeedPage() {
                     justifyContent: "center",
                     zIndex: 1,
                     position: "relative",
-                    marginTop: -2,
                   }}
                 >
                   <div
                     style={{
-                      fontSize: 16,
+                      fontSize: 18,
                       fontWeight: 800,
-                      color: "#fff",
+                      background: "linear-gradient(135deg, #A7F3D0 0%, #FACC15 100%)",
+                      WebkitBackgroundClip: "text",
+                      WebkitTextFillColor: "transparent",
                       lineHeight: 1,
-                      textShadow: "0 0 6px rgba(34, 211, 238, 0.5)",
+                      filter: "drop-shadow(0 0 4px rgba(250, 204, 21, 0.4))",
                     }}
                   >
                     {v.aiScore ?? 90}
                   </div>
                   <div
                     style={{
-                      fontSize: 8,
+                      fontSize: 11,
                       fontWeight: 700,
-                      color: "#CFFAFE",
+                      background: "linear-gradient(135deg, #22D3EE 0%, #FACC15 100%)",
+                      WebkitBackgroundClip: "text",
+                      WebkitTextFillColor: "transparent",
                       letterSpacing: 1,
-                      marginTop: -1,
+                      marginTop: -2,
                     }}
                   >
                     AI
@@ -749,128 +777,95 @@ function FeedPage() {
                 </div>
               </div>
               
-              <button
+              <div
                 onClick={() => toggleLike(v.id)}
                 style={{
                   width: 48,
                   height: 48,
                   borderRadius: 999,
-                  border: liked[v.id] ? `1px solid ${themeColor}b3` : `1px solid ${themeColor}59`,
-                  background: liked[v.id] 
-                    ? `linear-gradient(135deg, ${themeColor}a6, ${themeColor}8c)` 
-                    : backgroundColor === "light"
-                    ? "linear-gradient(135deg, rgba(220,220,220,.85), rgba(240,240,240,.8))"
-                    : "linear-gradient(135deg, rgba(26,10,40,.85), rgba(20,5,35,.8))",
-                  backdropFilter: "blur(10px)",
-                  color: liked[v.id] ? themeColor : `${themeColor}bf`,
+                  border: "1px solid rgba(255,255,255,.18)",
+                  background: `linear-gradient(135deg, ${themeColor}2d, ${themeColor}1a)`,
+                  backdropFilter: "blur(18px) saturate(140%)",
+                  WebkitBackdropFilter: "blur(18px) saturate(140%)",
+                  color: "#fff",
                   cursor: "pointer",
-                  fontSize: 20,
-                  fontWeight: "bold",
-                  boxShadow: liked[v.id] 
-                    ? `0 0 18px ${themeColor}a6, inset 0 1px 0 rgba(255,255,255,.18)` 
-                    : backgroundColor === "light"
-                    ? "0 4px 10px rgba(0,0,0,.1), inset 0 1px 0 rgba(100,100,100,.05)"
-                    : "0 4px 10px rgba(0,0,0,.4), inset 0 1px 0 rgba(157,78,221,.08)",
+                  boxShadow: liked[v.id]
+                    ? `0 0 22px ${themeColor}8c, 0 0 8px ${themeColor}73, inset 0 1px 0 rgba(255,255,255,.2)`
+                    : `0 0 14px ${themeColor}59, 0 0 6px ${themeColor}4d, inset 0 1px 0 rgba(255,255,255,.18)`,
+                  filter: `drop-shadow(0 0 5px ${themeColor}59)`,
                   transition: "all 0.3s ease",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                 }}
               >
-                {liked[v.id] ? "♥" : "♡"}
-              </button>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 21s-6.6-4.3-9-7.5C1 11 1.6 7.6 4.6 6.1c2.1-1 4.6-.3 7.4 2.7 2.8-3 5.3-3.7 7.4-2.7 3 1.5 3.6 4.9 1.6 7.4-2.4 3.2-9 7.5-9 7.5z" />
+                </svg>
+              </div>
               <div style={{ fontSize: 11, fontWeight: "600", opacity: 0.95, color: themeColor, marginTop: -10 }}>
                 {likeCount[v.id] ?? 0}
               </div>
 
-              <button
+              <div
                 onClick={() => openComments(v.id)}
                 style={{
                   width: 48,
                   height: 48,
                   borderRadius: 999,
-                  border: `1px solid ${themeColor}59`,
-                  background: backgroundColor === "light"
-                    ? "linear-gradient(135deg, rgba(220,220,220,.85), rgba(240,240,240,.8))"
-                    : "linear-gradient(135deg, rgba(26,10,40,.85), rgba(20,5,35,.8))",
-                  backdropFilter: "blur(10px)",
-                  color: themeColor,
+                  border: "1px solid rgba(255,255,255,.18)",
+                  background: `linear-gradient(135deg, ${themeColor}2d, ${themeColor}1a)`,
+                  backdropFilter: "blur(18px) saturate(140%)",
+                  WebkitBackdropFilter: "blur(18px) saturate(140%)",
+                  color: "#fff",
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  boxShadow: backgroundColor === "light"
-                    ? "0 4px 10px rgba(0,0,0,.1), inset 0 1px 0 rgba(100,100,100,.05)"
-                    : "0 4px 10px rgba(0,0,0,.4), inset 0 1px 0 rgba(157,78,221,.08)",
+                  boxShadow: `0 0 14px ${themeColor}59, 0 0 6px ${themeColor}4d, inset 0 1px 0 rgba(255,255,255,.18)`,
+                  filter: `drop-shadow(0 0 5px ${themeColor}59)`,
                   transition: "all 0.3s ease",
                 }}
                 aria-label="コメント"
               >
-                <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-                  <defs>
-                    <linearGradient id="commentGrad" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor={themeColor} />
-                      <stop offset="100%" stopColor={themeColor} />
-                    </linearGradient>
-                  </defs>
-                  <g fill="none" stroke="url(#commentGrad)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                  </g>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M4 5h16a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H9l-5 4v-4H4a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3z" />
                 </svg>
-              </button>
+              </div>
               <div style={{ fontSize: 11, fontWeight: "600", opacity: 0.95, color: themeColor, marginTop: -10 }}>
                 {commentCount[v.id] ?? 0}
               </div>
 
-              <button
+              <div
                 onClick={() => toggleSave(v.id)}
                 style={{
                   width: 48,
                   height: 48,
                   borderRadius: 999,
-                  border: saved[v.id] ? `1px solid ${themeColor}b3` : `1px solid ${themeColor}59`,
-                  background: saved[v.id] 
-                    ? `linear-gradient(135deg, ${themeColor}a6, ${themeColor}8c)` 
-                    : backgroundColor === "light"
-                    ? "linear-gradient(135deg, rgba(220,220,220,.85), rgba(240,240,240,.8))"
-                    : "linear-gradient(135deg, rgba(26,10,40,.85), rgba(20,5,35,.8))",
-                  backdropFilter: "blur(10px)",
-                  color: saved[v.id] ? themeColor : `${themeColor}bf`,
+                  border: "1px solid rgba(255,255,255,.18)",
+                  background: `linear-gradient(135deg, ${themeColor}2d, ${themeColor}1a)`,
+                  backdropFilter: "blur(18px) saturate(140%)",
+                  WebkitBackdropFilter: "blur(18px) saturate(140%)",
+                  color: "#fff",
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  boxShadow: saved[v.id] 
-                    ? `0 0 18px ${themeColor}8c, inset 0 1px 0 rgba(255,255,255,.18)` 
-                    : backgroundColor === "light"
-                    ? "0 4px 10px rgba(0,0,0,.1), inset 0 1px 0 rgba(100,100,100,.05)"
-                    : "0 4px 10px rgba(0,0,0,.4), inset 0 1px 0 rgba(157,78,221,.08)",
+                  boxShadow: `0 0 14px ${themeColor}59, 0 0 6px ${themeColor}4d, inset 0 1px 0 rgba(255,255,255,.18)`,
+                  filter: `drop-shadow(0 0 5px ${themeColor}59)`,
                   transition: "all 0.3s ease",
                 }}
                 aria-label="保存"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-                  <defs>
-                    <linearGradient id="saveGrad" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor={themeColor} />
-                      <stop offset="100%" stopColor={themeColor} />
-                    </linearGradient>
-                  </defs>
-                  <path
-                    d="M6 3h12a1 1 0 0 1 1 1v16l-7-4-7 4V4a1 1 0 0 1 1-1z"
-                    fill="none"
-                    stroke="url(#saveGrad)"
-                    strokeWidth="2"
-                    strokeLinejoin="round"
-                    strokeLinecap="round"
-                  />
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M6 4h12a1 1 0 0 1 1 1v15l-7-4-7 4V5a1 1 0 0 1 1-1z" />
                 </svg>
-              </button>
-              <div style={{ fontSize: 10, fontWeight: "500", opacity: 0.8, color: themeColor, marginTop: -10 }}>
+              </div>
+              <div style={{ fontSize: 10, fontWeight: "500", opacity: 0, color: themeColor, marginTop: -10 }}>
                 {saved[v.id] ? "保存済" : ""}
               </div>
 
-              <button
+              <div
                 onClick={() => {
                   const videoUrl = `${window.location.origin}/tabs/feed?video=${v.id}`;
                   if (navigator.share) {
@@ -888,77 +883,55 @@ function FeedPage() {
                   width: 48,
                   height: 48,
                   borderRadius: 999,
-                  border: `1px solid ${themeColor}59`,
-                  background: backgroundColor === "light"
-                    ? "linear-gradient(135deg, rgba(220,220,220,.85), rgba(240,240,240,.8))"
-                    : "linear-gradient(135deg, rgba(26,10,40,.85), rgba(20,5,35,.8))",
-                  backdropFilter: "blur(10px)",
-                  color: themeColor,
+                  border: "1px solid rgba(255,255,255,.18)",
+                  background: `linear-gradient(135deg, ${themeColor}2d, ${themeColor}1a)`,
+                  backdropFilter: "blur(18px) saturate(140%)",
+                  WebkitBackdropFilter: "blur(18px) saturate(140%)",
+                  color: "#fff",
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  boxShadow: backgroundColor === "light"
-                    ? "0 4px 10px rgba(0,0,0,.1), inset 0 1px 0 rgba(100,100,100,.05)"
-                    : "0 4px 10px rgba(0,0,0,.4), inset 0 1px 0 rgba(157,78,221,.08)",
+                  boxShadow: `0 0 14px ${themeColor}59, 0 0 6px ${themeColor}4d, inset 0 1px 0 rgba(255,255,255,.18)`,
+                  filter: `drop-shadow(0 0 5px ${themeColor}59)`,
                   transition: "all 0.3s ease",
                 }}
                 aria-label="共有"
               >
-                <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-                  <defs>
-                    <linearGradient id="shareGrad" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor={themeColor} />
-                      <stop offset="100%" stopColor={themeColor} />
-                    </linearGradient>
-                  </defs>
-                  <g fill="none" stroke="url(#shareGrad)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="18" cy="5" r="3" />
-                    <circle cx="6" cy="12" r="3" />
-                    <circle cx="18" cy="19" r="3" />
-                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-                  </g>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 5v9" />
+                  <path d="M8 9l4-4 4 4" />
+                  <path d="M5 19h14" />
                 </svg>
-              </button>
+              </div>
 
-              <button
+              <div
                 onClick={() => router.push("/music")}
                 style={{
                   width: 48,
                   height: 48,
                   borderRadius: 999,
-                  border: `1px solid ${themeColor}59`,
-                  background: backgroundColor === "light"
-                    ? "linear-gradient(135deg, rgba(220,220,220,.85), rgba(240,240,240,.8))"
-                    : "linear-gradient(135deg, rgba(26,10,40,.85), rgba(20,5,35,.8))",
-                  backdropFilter: "blur(10px)",
-                  color: themeColor,
+                  border: "1px solid rgba(255,255,255,.18)",
+                  background: `linear-gradient(135deg, ${themeColor}2d, ${themeColor}1a)`,
+                  backdropFilter: "blur(18px) saturate(140%)",
+                  WebkitBackdropFilter: "blur(18px) saturate(140%)",
+                  color: "#fff",
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  boxShadow: backgroundColor === "light"
-                    ? "0 0 14px rgba(100,100,100,.3), inset 0 1px 0 rgba(255,255,255,.2)"
-                    : `0 0 14px ${themeColor}59, inset 0 1px 0 rgba(255,255,255,.12)`,
+                  boxShadow: `0 0 14px ${themeColor}59, 0 0 6px ${themeColor}4d, inset 0 1px 0 rgba(255,255,255,.18)`,
+                  filter: `drop-shadow(0 0 5px ${themeColor}59)`,
                   transition: "all 0.3s ease",
                 }}
                 aria-label="音楽"
               >
-                <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-                  <defs>
-                    <linearGradient id="musicGrad" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor={themeColor} />
-                      <stop offset="100%" stopColor={themeColor} />
-                    </linearGradient>
-                  </defs>
-                  <g fill="none" stroke="url(#musicGrad)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M9 18V5l12-2v13" />
-                    <circle cx="6" cy="18" r="2" />
-                    <circle cx="18" cy="16" r="2" />
-                  </g>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M10 18a2 2 0 1 0 2-2V6l8-2v8" />
+                  <circle cx="10" cy="18" r="2" />
+                  <circle cx="18" cy="14" r="2" />
                 </svg>
-              </button>
+              </div>
             </div>
           </div>
           ));

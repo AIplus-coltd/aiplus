@@ -30,12 +30,14 @@ export default function SettingsPage() {
 
         // テーマ色を更新
         const themeMap: Record<string, string> = {
-          pink: "#2b7ba8",
-          blue: "#2b7ba8",
-          green: "#2b7ba8",
-          purple: "#2b7ba8",
+          pink: "#ff1493",
+          blue: "#64b5f6",
+          green: "#81c784",
+          purple: "#9d4edd",
         };
-        setThemeColor(themeMap[parsed.themeColor] || "#2b7ba8");
+        const color = themeMap[parsed.themeColor] || "#64b5f6";
+        setThemeColor(color);
+        localStorage.setItem("themeColor", color);
         setBackgroundColor(parsed.backgroundColor || "light");
       }
     };
@@ -46,6 +48,16 @@ export default function SettingsPage() {
     setIsSaving(true);
     localStorage.setItem("appSettings", JSON.stringify(settings));
     hybridSet("appSettings", settings).catch(() => null);
+    
+    // テーマカラーのHEX値をローカルストレージに保存
+    const themeMap: Record<string, string> = {
+      pink: "#ff1493",
+      blue: "#64b5f6",
+      green: "#81c784",
+      purple: "#9d4edd",
+    };
+    const colorValue = themeMap[settings.themeColor] || "#64b5f6";
+    localStorage.setItem("themeColor", colorValue);
     
     // カスタムイベントをディスパッチしてテーマを再適用
     window.dispatchEvent(new CustomEvent("themeChanged", { detail: settings }));
@@ -171,6 +183,11 @@ export default function SettingsPage() {
                 onClick={() => {
                   setSettings((p) => ({ ...p, themeColor: option.value }));
                   setThemeColor(option.color);
+                  localStorage.setItem("themeColor", option.color);
+                  window.dispatchEvent(new StorageEvent("storage", {
+                    key: "themeColor",
+                    newValue: option.color,
+                  }));
                 }}
                 style={{
                   padding: 12,

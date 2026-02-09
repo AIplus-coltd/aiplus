@@ -3,25 +3,26 @@
 import React from "react";
 
 export default function AIScoreBadge({ score = 90, size = 48 }: { score?: number; size?: number }) {
-  // グラデーションID
-  const gradId = `ai-score-grad-${Math.random().toString(36).slice(2)}`;
-  const glowId = `ai-score-glow-${Math.random().toString(36).slice(2)}`;
+  // グラデーションとフィルターのID
+  const gradId = `grad-${Math.random().toString(36).substring(7)}`;
+  const glowId = `glow-${Math.random().toString(36).substring(7)}`;
   
-  // 六角形のパスを生成
-  const hexagonPath = (centerX: number, centerY: number, radius: number) => {
-    const points = [];
+  // 六角形頂点を計算（上を0度とする）
+  const createHexagon = (cx: number, cy: number, r: number): string => {
+    const points: string[] = [];
     for (let i = 0; i < 6; i++) {
-      const angle = (Math.PI / 3) * i - Math.PI / 2; // -90度から開始して上向きに
-      const x = centerX + radius * Math.cos(angle);
-      const y = centerY + radius * Math.sin(angle);
-      points.push(`${x},${y}`);
+      const angle = (i * 60 * Math.PI) / 180 - Math.PI / 2;
+      const x = cx + r * Math.cos(angle);
+      const y = cy + r * Math.sin(angle);
+      points.push(`${x.toFixed(2)},${y.toFixed(2)}`);
     }
     return `M ${points.join(' L ')} Z`;
   };
 
-  const center = size / 2;
-  const outerRadius = (size - 4) / 2;
-  const innerRadius = (size - 16) / 2;
+  const cx = size / 2;
+  const cy = size / 2;
+  const outerR = size / 2 - 2;
+  const innerR = size / 2 - 10;
 
   return (
     <div
@@ -35,7 +36,13 @@ export default function AIScoreBadge({ score = 90, size = 48 }: { score?: number
         filter: "drop-shadow(0 0 16px rgba(34, 211, 238, 0.6)) drop-shadow(0 0 8px rgba(250, 204, 21, 0.4))",
       }}
     >
-      <svg width={size} height={size} style={{ position: "absolute", top: 0, left: 0 }}>
+      <svg 
+        width={size} 
+        height={size} 
+        viewBox={`0 0 ${size} ${size}`} 
+        style={{ position: "absolute", top: 0, left: 0 }}
+        preserveAspectRatio="xMidYMid meet"
+      >
         <defs>
           <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#22D3EE" />
@@ -43,25 +50,29 @@ export default function AIScoreBadge({ score = 90, size = 48 }: { score?: number
             <stop offset="100%" stopColor="#FACC15" />
           </linearGradient>
           <filter id={glowId}>
-            <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+            <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
             <feMerge>
               <feMergeNode in="coloredBlur"/>
               <feMergeNode in="SourceGraphic"/>
             </feMerge>
           </filter>
         </defs>
-        {/* 外側の六角形ボーダー */}
+        
+        {/* 背景六角形 */}
         <path
-          d={hexagonPath(center, center, outerRadius)}
-          stroke={`url(#${gradId})`}
-          strokeWidth={4}
-          fill="none"
-          filter={`url(#${glowId})`}
-        />
-        {/* 内側の背景六角形 */}
-        <path
-          d={hexagonPath(center, center, innerRadius)}
+          d={createHexagon(cx, cy, innerR)}
           fill="#111827"
+        />
+        
+        {/* グラデーション六角形枠 */}
+        <path
+          d={createHexagon(cx, cy, outerR)}
+          fill="none"
+          stroke={`url(#${gradId})`}
+          strokeWidth="2.5"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          filter={`url(#${glowId})`}
         />
       </svg>
       <div

@@ -17,33 +17,49 @@ export default function SearchPage() {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<VideoRow[]>([]);
-  const [allVideos, setAllVideos] = useState<VideoRow[]>([]);
-  const [themeColor, setThemeColor] = useState<string>("#ff1493");
-  const [backgroundColor, setBackgroundColor] = useState<"dark" | "light">("dark");
-  const placeholderColor = backgroundColor === "light" ? "#777" : `${themeColor}cc`;
-
-  useEffect(() => {
-    // ローカルストレージから全動画を取得
+  const [allVideos, setAllVideos] = useState<VideoRow[]>(() => {
+    if (typeof window === "undefined") return [];
     const mockVideos = localStorage.getItem("mockVideos");
-    const videos = mockVideos ? JSON.parse(mockVideos) : [];
-    setAllVideos(videos);
-    
-    // テーマ設定読み込み
+    if (!mockVideos) return [];
+    try {
+      const parsed = JSON.parse(mockVideos);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+  const [themeColor, setThemeColor] = useState<string>(() => {
+    if (typeof window === "undefined") return "#ff1493";
     const savedSettings = localStorage.getItem("appSettings");
-    if (savedSettings) {
+    if (!savedSettings) return "#ff1493";
+    try {
       const settings = JSON.parse(savedSettings);
       const color = settings.themeColor || "pink";
-      const bgColor = settings.backgroundColor || "dark";
       const themeMap: Record<string, string> = {
         pink: "#ff1493",
         blue: "#64b5f6",
         green: "#81c784",
         purple: "#9d4edd",
       };
-      setThemeColor(themeMap[color] || "#ff1493");
-      setBackgroundColor(bgColor);
+      return themeMap[color] || "#ff1493";
+    } catch {
+      return "#ff1493";
     }
+  });
+  const [backgroundColor, setBackgroundColor] = useState<"dark" | "light">(() => {
+    if (typeof window === "undefined") return "dark";
+    const savedSettings = localStorage.getItem("appSettings");
+    if (!savedSettings) return "dark";
+    try {
+      const settings = JSON.parse(savedSettings);
+      return settings.backgroundColor === "light" ? "light" : "dark";
+    } catch {
+      return "dark";
+    }
+  });
+  const placeholderColor = backgroundColor === "light" ? "#777" : `${themeColor}cc`;
 
+  useEffect(() => {
     const handleThemeChange = (e: Event) => {
       const customEvent = e as CustomEvent;
       if (customEvent.detail) {

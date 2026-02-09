@@ -111,7 +111,7 @@ export default function RulesPage() {
           ←
         </button>
         <div style={{ fontSize: 16, fontWeight: "700", color: themeColor, letterSpacing: "0.02em" }}>
-          📋 ルール説明
+          📋 AI＋PLATFORM 利用規約
         </div>
         <div style={{ width: 28 }} />
       </div>
@@ -135,6 +135,7 @@ export default function RulesPage() {
             すべてのユーザーが安心して楽しく利用できるよう、以下のルールを守ってご利用ください。
           </div>
         </div>
+
 
         {/* ルールセクション */}
         {rules.map((section, index) => (

@@ -21,35 +21,61 @@ type PlayList = {
 
 export default function SavedVideosPage() {
   const router = useRouter();
-  const [themeColor, setThemeColor] = useState<string>("#ff1493");
-  const [backgroundColor, setBackgroundColor] = useState<"dark" | "light">("dark");
-  const [savedVideos, setSavedVideos] = useState<VideoRow[]>([]);
-  const [playlists, setPlaylists] = useState<PlayList[]>([]);
+  const [themeColor, setThemeColor] = useState<string>(() => {
+    if (typeof window === "undefined") return "#ff1493";
+    const savedSettings = localStorage.getItem("appSettings");
+    if (!savedSettings) return "#ff1493";
+    try {
+      const settings = JSON.parse(savedSettings);
+      const color = settings.themeColor || "pink";
+      const themeMap: Record<string, string> = {
+        pink: "#ff1493",
+        blue: "#64b5f6",
+        green: "#81c784",
+        purple: "#9d4edd",
+      };
+      return themeMap[color] || "#ff1493";
+    } catch {
+      return "#ff1493";
+    }
+  });
+  const [backgroundColor, setBackgroundColor] = useState<"dark" | "light">(() => {
+    if (typeof window === "undefined") return "dark";
+    const savedSettings = localStorage.getItem("appSettings");
+    if (!savedSettings) return "dark";
+    try {
+      const settings = JSON.parse(savedSettings);
+      return settings.backgroundColor === "light" ? "light" : "dark";
+    } catch {
+      return "dark";
+    }
+  });
+  const [savedVideos, setSavedVideos] = useState<VideoRow[]>(() => {
+    if (typeof window === "undefined") return [];
+    const saved = localStorage.getItem("savedVideos");
+    if (!saved) return [];
+    try {
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+  const [playlists, setPlaylists] = useState<PlayList[]>(() => {
+    if (typeof window === "undefined") return [];
+    const lists = localStorage.getItem("videoPlaylists");
+    if (!lists) return [];
+    try {
+      const parsed = JSON.parse(lists);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
   const [newListName, setNewListName] = useState("");
   const [showCreateList, setShowCreateList] = useState(false);
 
   useEffect(() => {
-    const savedSettings = localStorage.getItem("appSettings");
-    const settings = savedSettings ? JSON.parse(savedSettings) : {};
-    const color = settings.themeColor || "pink";
-    const bgColor = settings.backgroundColor || "dark";
-    const themeMap: Record<string, string> = {
-      pink: "#ff1493",
-      blue: "#64b5f6",
-      green: "#81c784",
-      purple: "#9d4edd",
-    };
-    setThemeColor(themeMap[color] || "#ff1493");
-    setBackgroundColor(bgColor);
-
-    const saved = localStorage.getItem("savedVideos");
-    const savedList = saved ? JSON.parse(saved) : [];
-    setSavedVideos(savedList);
-
-    const lists = localStorage.getItem("videoPlaylists");
-    const playlistData = lists ? JSON.parse(lists) : [];
-    setPlaylists(playlistData);
-
     const handleThemeChange = (e: Event) => {
       const ce = e as CustomEvent;
       if (ce.detail) {

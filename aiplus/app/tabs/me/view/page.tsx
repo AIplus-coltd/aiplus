@@ -21,6 +21,39 @@ type VideoRow = {
   created_at: string;
 };
 
+type CurrentUser = {
+  id?: string;
+  user_id?: string;
+  username?: string;
+  handle?: string;
+  [key: string]: unknown;
+};
+
+type AppUser = {
+  id: string;
+  handle?: string;
+};
+
+type Sale = {
+  id: string;
+  sellerId: string;
+  buyerName?: string;
+  amount?: number;
+  netAmount?: number;
+  createdAt: string;
+  payoutStatus?: string;
+  paidAt?: string;
+};
+
+type MailItem = {
+  id: string;
+  from: string;
+  subject: string;
+  body: string;
+  date: string;
+  read?: boolean;
+};
+
 export default function ProfileViewPage() {
   const router = useRouter();
   const [profile, setProfile] = useState<UserProfile>({ username: "", bio: "", avatar: "👤" });
@@ -28,10 +61,12 @@ export default function ProfileViewPage() {
   const [savedVideos, setSavedVideos] = useState<VideoRow[]>([]);
   const [themeColor, setThemeColor] = useState<string>("#ff1493");
   const [backgroundColor, setBackgroundColor] = useState<"dark" | "light">("dark");
-  const [currentUser, setCurrentUser] = useState<any>(null);
-  const [mySales, setMySales] = useState<any[]>([]);
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [mySales, setMySales] = useState<Sale[]>([]);
   const [totalRevenue, setTotalRevenue] = useState(0);
-  const [mailList, setMailList] = useState<any[]>([]);
+  const [sellerBalance, setSellerBalance] = useState(0);
+  const [mailList, setMailList] = useState<MailItem[]>([]);
   const [selectedMail, setSelectedMail] = useState<number | null>(null);
   const [ideaMessages, setIdeaMessages] = useState<{ id: string; role: "ai" | "user"; text: string }[]>([
     {
@@ -44,6 +79,45 @@ export default function ProfileViewPage() {
   const [pageAudience, setPageAudience] = useState("");
   const [pageTone, setPageTone] = useState("");
   const [activeTab, setActiveTab] = useState<"profile" | "mail" | "ideas" | "sales" | "score">("profile");
+  const tabs: Array<"profile" | "mail" | "ideas" | "sales" | "score"> = [
+    "profile",
+    "mail",
+    "sales",
+    "score",
+    "ideas",
+  ];
+
+  // 投稿を再読み込みする関数
+  const refreshVideos = () => {
+    let userId = null;
+    const userSessionRaw = sessionStorage.getItem("currentUser") || localStorage.getItem("currentUser");
+    if (userSessionRaw) {
+      try {
+        const parsed = JSON.parse(userSessionRaw);
+        userId = parsed.id;
+      } catch {}
+    }
+
+    let userVideos: VideoRow[] = [];
+    const allVideosRaw = localStorage.getItem("mockVideos");
+    const allVideos: VideoRow[] = allVideosRaw ? JSON.parse(allVideosRaw) : [];
+    if (userId) {
+      userVideos = allVideos.filter((v) => v.user_id === userId);
+      if (userVideos.length === 0) {
+        const userVideosRaw = localStorage.getItem(`videos_${userId}`);
+        if (userVideosRaw) {
+          userVideos = JSON.parse(userVideosRaw);
+        }
+      }
+    }
+    setVideos(userVideos);
+  };
+
+  const payoutCounts = useMemo(() => {
+    const completed = mySales.filter((sale) => sale?.payoutStatus === "completed" || sale?.payoutStatus === "paid" || sale?.paidAt).length;
+    const pending = Math.max(0, mySales.length - completed);
+    return { pending, completed };
+  }, [mySales]);
 
   useEffect(() => {
     const init = async () => {
@@ -78,6 +152,7 @@ export default function ProfileViewPage() {
         userId = "demo-user";
         localStorage.setItem("me", userId);
       }
+      setCurrentUserId(userId);
 
       // プロフィール情報を読み込み
       const savedProfile = await hybridGet(`userProfile_${userId}`);
@@ -94,20 +169,20 @@ export default function ProfileViewPage() {
         }
       }
 
-    const userSessionRaw2 = sessionStorage.getItem("currentUser");
-    const storedUser = userSessionRaw2 || localStorage.getItem("currentUser");
-    if (storedUser) {
-      try {
-        const parsed = JSON.parse(storedUser);
-        const users = JSON.parse(localStorage.getItem("aiplus_users") || "[]");
-        const me = users.find((u: any) => u.id === parsed?.id);
-        if (me?.handle) {
-          setProfile((prev) => ({ ...prev, handle: me.handle }));
+      const userSessionRaw2 = sessionStorage.getItem("currentUser");
+      const storedUser = userSessionRaw2 || localStorage.getItem("currentUser");
+      if (storedUser) {
+        try {
+          const parsed = JSON.parse(storedUser);
+          const users: AppUser[] = JSON.parse(localStorage.getItem("aiplus_users") || "[]");
+          const me = users.find((u) => u.id === parsed?.id);
+          if (me?.handle) {
+            setProfile((prev) => ({ ...prev, handle: me.handle }));
+          }
+        } catch {
+          // ignore
         }
-      } catch {
-        // ignore
       }
-    }
 
       // ユーザーごとの投稿のみ表示
       let userVideos: VideoRow[] = [];
@@ -131,13 +206,20 @@ export default function ProfileViewPage() {
       // 売上データを取得
       const salesData = localStorage.getItem("sales");
       if (salesData && userId) {
-        const sales = JSON.parse(salesData);
-        const userSales = sales.filter((s: any) => s.sellerId === userId);
+        const sales: Sale[] = JSON.parse(salesData);
+        const userSales = sales.filter((s: Sale) => s.sellerId === userId);
         setMySales(userSales);
 
         // 総売上を計算
-        const total = userSales.reduce((sum: number, sale: any) => sum + (sale.amount || 0), 0);
+        const total = userSales.reduce((sum: number, sale: Sale) => sum + (sale.netAmount ?? sale.amount ?? 0), 0);
         setTotalRevenue(total);
+      }
+
+      // 口座残高（手数料控除後）を取得
+      if (userId) {
+        const balancesRaw = localStorage.getItem("sellerBalances") || "{}";
+        const balances = JSON.parse(balancesRaw);
+        setSellerBalance(balances[userId] || 0);
       }
 
       // メールを取得
@@ -180,31 +262,31 @@ export default function ProfileViewPage() {
     setIdeaMessages((prev) => [...prev, { id: `${role}-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`, role, text }]);
   };
 
-  // 投稿を再読み込みする関数
-  const refreshVideos = () => {
-    let userId = null;
-    const userSessionRaw = sessionStorage.getItem("currentUser") || localStorage.getItem("currentUser");
-    if (userSessionRaw) {
-      try {
-        const parsed = JSON.parse(userSessionRaw);
-        userId = parsed.id;
-      } catch {}
-    }
-
-    let userVideos: VideoRow[] = [];
-    const allVideosRaw = localStorage.getItem("mockVideos");
-    const allVideos: VideoRow[] = allVideosRaw ? JSON.parse(allVideosRaw) : [];
-    if (userId) {
-      userVideos = allVideos.filter((v) => v.user_id === userId);
-      if (userVideos.length === 0) {
-        const userVideosRaw = localStorage.getItem(`videos_${userId}`);
-        if (userVideosRaw) {
-          userVideos = JSON.parse(userVideosRaw);
-        }
-      }
-    }
-    setVideos(userVideos);
+  const addSampleMail = () => {
+    if (!currentUserId) return;
+    const newMail = {
+      id: `mail-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      from: "system",
+      subject: "テストメッセージ",
+      body: "これは受信表示確認用のテストメッセージです。",
+      date: new Date().toLocaleString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }),
+      read: false,
+    };
+    const existingMails = localStorage.getItem(`mails_${currentUserId}`);
+    const mails = existingMails ? JSON.parse(existingMails) : [];
+    mails.unshift(newMail);
+    localStorage.setItem(`mails_${currentUserId}`, JSON.stringify(mails));
+    setMailList(mails);
   };
+
+  const refreshMailList = () => {
+    if (!currentUserId) return;
+    const mailsData = localStorage.getItem(`mails_${currentUserId}`);
+    const mails = mailsData ? JSON.parse(mailsData) : [];
+    setMailList(mails);
+    setSelectedMail(null);
+  };
+
 
   const handleGenerateIdeas = () => {
     const goal = pageGoal.trim() || "ファンが集まる自己紹介ページ";
@@ -360,11 +442,11 @@ export default function ProfileViewPage() {
 
         {/* タブナビゲーション */}
         <div style={{ display: "flex", gap: 8, overflowX: "auto", marginBottom: 16, paddingBottom: 8 }}>
-          {["profile", "mail", "sales", "score", "ideas"].map((tab) => (
+          {tabs.map((tab) => (
             <button
               key={tab}
               onClick={() => {
-                setActiveTab(tab as any);
+                setActiveTab(tab);
                 // プロフィールタブ切り替え時に投稿を再読み込み
                 if (tab === "profile") {
                   setTimeout(() => refreshVideos(), 100);
@@ -386,7 +468,7 @@ export default function ProfileViewPage() {
               }}
             >
               {tab === "profile" && "📝 プロフィール"}
-              {tab === "mail" && "📨 メール"}
+              {tab === "mail" && "📥 メッセージ"}
               {tab === "sales" && "💰 売上"}
               {tab === "ideas" && "💡 AI相談"}
               {tab === "score" && "🏆 スコア"}
@@ -397,6 +479,46 @@ export default function ProfileViewPage() {
         {/* プロフィールタブ */}
         {activeTab === "profile" && (
           <div style={{ marginBottom: 16 }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+                padding: 14,
+                borderRadius: 12,
+                marginBottom: 14,
+                background: backgroundColor === "light"
+                  ? `linear-gradient(135deg, ${themeColor}12, ${themeColor}06)`
+                  : `linear-gradient(135deg, ${themeColor}20, ${themeColor}10)`,
+                border: `1px solid ${themeColor}40`,
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: themeColor, marginBottom: 4 }}>
+                  📥 メッセージ一覧
+                </div>
+                <div style={{ fontSize: 12, opacity: 0.75 }}>
+                  受信メッセージ: {mailList.length}件
+                </div>
+              </div>
+              <button
+                onClick={() => setActiveTab("mail")}
+                style={{
+                  padding: "8px 14px",
+                  borderRadius: 999,
+                  border: `1px solid ${themeColor}`,
+                  background: "transparent",
+                  color: themeColor,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                開く
+              </button>
+            </div>
+
             <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
               <button
                 onClick={() => router.push("/sell")}
@@ -494,6 +616,38 @@ export default function ProfileViewPage() {
         {/* メールタブ */}
         {activeTab === "mail" && (
           <div style={{ marginBottom: 16 }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 10 }}>
+              <button
+                onClick={refreshMailList}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: 999,
+                  border: `1px solid ${themeColor}`,
+                  background: "transparent",
+                  color: themeColor,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                受信
+              </button>
+              <button
+                onClick={addSampleMail}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: 999,
+                  border: `1px solid ${themeColor}`,
+                  background: "transparent",
+                  color: themeColor,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                テストメッセージを追加
+              </button>
+            </div>
             {selectedMail ? (
               <div>
                 <button
@@ -538,36 +692,54 @@ export default function ProfileViewPage() {
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {mailList.map((mail) => (
-                  <button
-                    key={mail.id}
-                    onClick={() => setSelectedMail(mail.id)}
+                {mailList.length === 0 ? (
+                  <div
                     style={{
-                      padding: 12,
-                      borderRadius: 10,
-                      border: `1px solid ${backgroundColor === "light" ? "rgba(0,0,0,.1)" : themeColor}40`,
+                      padding: 16,
+                      borderRadius: 12,
                       background: backgroundColor === "light"
-                        ? "linear-gradient(135deg, rgba(255,255,255,.9), rgba(240,240,240,.8))"
-                        : `linear-gradient(135deg, ${themeColor}15, ${themeColor}08)`,
-                      textAlign: "left",
-                      cursor: "pointer",
-                      transition: "all 0.3s ease",
+                        ? "rgba(255,255,255,.9)"
+                        : `linear-gradient(135deg, ${themeColor}12, ${themeColor}06)`,
+                      border: `1px solid ${backgroundColor === "light" ? "rgba(0,0,0,.08)" : themeColor}40`,
+                      fontSize: 12,
+                      opacity: 0.8,
+                      textAlign: "center",
                     }}
                   >
-                    <div style={{ fontWeight: 600, marginBottom: 4, color: themeColor, fontSize: 13 }}>
-                      {mail.subject}
-                    </div>
-                    <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 4 }}>
-                      {mail.from}
-                    </div>
-                    <div style={{ fontSize: 12, opacity: 0.9, marginBottom: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {mail.body}
-                    </div>
-                    <div style={{ fontSize: 10, opacity: 0.5 }}>
-                      {mail.date}
-                    </div>
-                  </button>
-                ))}
+                    メッセージはまだありません
+                  </div>
+                ) : (
+                  mailList.map((mail) => (
+                    <button
+                      key={mail.id}
+                      onClick={() => setSelectedMail(mail.id)}
+                      style={{
+                        padding: 12,
+                        borderRadius: 10,
+                        border: `1px solid ${backgroundColor === "light" ? "rgba(0,0,0,.1)" : themeColor}40`,
+                        background: backgroundColor === "light"
+                          ? "linear-gradient(135deg, rgba(255,255,255,.9), rgba(240,240,240,.8))"
+                          : `linear-gradient(135deg, ${themeColor}15, ${themeColor}08)`,
+                        textAlign: "left",
+                        cursor: "pointer",
+                        transition: "all 0.3s ease",
+                      }}
+                    >
+                      <div style={{ fontWeight: 600, marginBottom: 4, color: themeColor, fontSize: 13 }}>
+                        {mail.subject}
+                      </div>
+                      <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 4 }}>
+                        {mail.from}
+                      </div>
+                      <div style={{ fontSize: 12, opacity: 0.9, marginBottom: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {mail.body}
+                      </div>
+                      <div style={{ fontSize: 10, opacity: 0.5 }}>
+                        {mail.date}
+                      </div>
+                    </button>
+                  ))
+                )}
               </div>
             )}
           </div>
@@ -580,8 +752,41 @@ export default function ProfileViewPage() {
             💰 売上管理
           </div>
 
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+            <div
+              style={{
+                padding: "6px 10px",
+                borderRadius: 999,
+                border: `1px solid ${themeColor}40`,
+                background: backgroundColor === "light"
+                  ? `linear-gradient(135deg, ${themeColor}12, ${themeColor}08)`
+                  : `linear-gradient(135deg, ${themeColor}20, ${themeColor}10)`,
+                fontSize: 11,
+                fontWeight: 700,
+                color: themeColor,
+              }}
+            >
+              送金予定 {payoutCounts.pending}件
+            </div>
+            <div
+              style={{
+                padding: "6px 10px",
+                borderRadius: 999,
+                border: `1px solid ${themeColor}40`,
+                background: backgroundColor === "light"
+                  ? `linear-gradient(135deg, ${themeColor}12, ${themeColor}08)`
+                  : `linear-gradient(135deg, ${themeColor}20, ${themeColor}10)`,
+                fontSize: 11,
+                fontWeight: 700,
+                color: themeColor,
+              }}
+            >
+              送金完了 {payoutCounts.completed}件
+            </div>
+          </div>
+
           {/* 売上統計 */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 12, marginBottom: 16 }}>
             <div
               style={{
                 background: backgroundColor === "light"
@@ -595,6 +800,21 @@ export default function ProfileViewPage() {
               <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>総売上</div>
               <div style={{ fontSize: 20, fontWeight: "bold", color: themeColor }}>
                 ¥{totalRevenue.toLocaleString()}
+              </div>
+            </div>
+            <div
+              style={{
+                background: backgroundColor === "light"
+                  ? `linear-gradient(135deg, ${themeColor}15, ${themeColor}08)`
+                  : `linear-gradient(135deg, ${themeColor}25, ${themeColor}15)`,
+                borderRadius: 12,
+                padding: 16,
+                border: `1px solid ${themeColor}40`,
+              }}
+            >
+              <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>口座残高</div>
+              <div style={{ fontSize: 20, fontWeight: "bold", color: themeColor }}>
+                ¥{sellerBalance.toLocaleString()}
               </div>
             </div>
             <div
@@ -639,8 +859,13 @@ export default function ProfileViewPage() {
                         {new Date(sale.createdAt).toLocaleDateString("ja-JP")}
                       </div>
                     </div>
-                    <div style={{ textAlign: "right", fontWeight: "bold", color: themeColor }}>
-                      ¥{sale.amount.toLocaleString()}
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontWeight: "bold", color: themeColor }}>
+                        ¥{sale.amount.toLocaleString()}
+                      </div>
+                      <div style={{ fontSize: 10, opacity: 0.7 }}>
+                        {sale?.payoutStatus === "completed" || sale?.payoutStatus === "paid" || sale?.paidAt ? "送金完了" : "送金予定"}
+                      </div>
                     </div>
                   </div>
                 ))}

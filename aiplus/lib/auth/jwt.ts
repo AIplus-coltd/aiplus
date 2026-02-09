@@ -14,11 +14,17 @@ const getJwtSecret = () => {
   return secret;
 };
 
-export const signAccessToken = (payload: AuthTokenPayload, expiresIn = "15m") => {
+export const signAccessToken = (
+  payload: AuthTokenPayload,
+  expiresIn: jwt.SignOptions["expiresIn"] = "15m"
+) => {
   return jwt.sign(payload, getJwtSecret(), { expiresIn });
 };
 
-export const signRefreshToken = (payload: AuthTokenPayload, expiresIn = "30d") => {
+export const signRefreshToken = (
+  payload: AuthTokenPayload,
+  expiresIn: jwt.SignOptions["expiresIn"] = "30d"
+) => {
   return jwt.sign(payload, getJwtSecret(), { expiresIn });
 };
 

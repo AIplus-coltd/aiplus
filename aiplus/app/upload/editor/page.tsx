@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { uploadVideo } from "@/lib/storage";
 import dynamic from "next/dynamic";
 // CameraEffectは動的import（SSR無効）で読み込み
 const CameraEffect = dynamic(() => import("@/components/CameraEffect"), { ssr: false });
-  const [showCamera, setShowCamera] = useState(false);
 
 type VideoRow = {
   id: string;
@@ -25,6 +24,7 @@ type VideoRow = {
 
 export default function EditBeforePostPage() {
   const router = useRouter();
+  const [showCamera, setShowCamera] = useState(false);
   const [themeColor, setThemeColor] = useState<string>("#ff1493");
   const [backgroundColor, setBackgroundColor] = useState<"dark" | "light">("dark");
   const [file, setFile] = useState<File | null>(null);

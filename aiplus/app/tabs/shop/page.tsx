@@ -10,6 +10,7 @@ type Product = {
   image: string;
   description: string;
   category: string;
+  sellerId?: string;
   sellerName?: string;
 };
 
@@ -39,6 +40,41 @@ export default function ShopPage() {
   const [postDesc, setPostDesc] = useState("");
   const [postCategory, setPostCategory] = useState("");
   const [postImage, setPostImage] = useState("");
+
+  const resolveUserId = () => {
+    let userId: string | null = null;
+    const currentUserRaw = sessionStorage.getItem("currentUser") || localStorage.getItem("currentUser");
+    if (currentUserRaw) {
+      try {
+        const parsed = JSON.parse(currentUserRaw);
+        userId = parsed?.id || parsed?.user_id || null;
+      } catch {}
+    }
+    if (!userId) userId = localStorage.getItem("me");
+    if (!userId) {
+      userId = "demo-user";
+      localStorage.setItem("me", userId);
+    }
+    return userId;
+  };
+
+  const resolveUserName = (userId: string) => {
+    const savedProfile = localStorage.getItem(`userProfile_${userId}`);
+    if (savedProfile) {
+      try {
+        const parsed = JSON.parse(savedProfile);
+        if (parsed?.username) return parsed.username;
+      } catch {}
+    }
+    const legacyProfile = localStorage.getItem("profile");
+    if (legacyProfile) {
+      try {
+        const parsed = JSON.parse(legacyProfile);
+        if (parsed?.username) return parsed.username;
+      } catch {}
+    }
+    return "user";
+  };
 
   useEffect(() => {
     const loadSettings = () => {
@@ -105,9 +141,11 @@ export default function ShopPage() {
   const handlePostProduct = () => {
     if (!postName.trim() || !postPrice.trim() || isNaN(Number(postPrice))) return;
     // グラデーション色欄が空欄や不正な場合はデフォルト値
-    let grad = postImage && /#[0-9a-fA-F]{3,6},\s*#[0-9a-fA-F]{3,6}/.test(postImage)
+    const grad = postImage && /#[0-9a-fA-F]{3,6},\s*#[0-9a-fA-F]{3,6}/.test(postImage)
       ? postImage
       : "#f093fb, #f5576c";
+    const sellerId = resolveUserId();
+    const sellerName = resolveUserName(sellerId);
     const newProduct: Product = {
       id: "user-" + Date.now() + Math.random().toString(36),
       name: postName,
@@ -115,6 +153,8 @@ export default function ShopPage() {
       image: grad,
       description: postDesc,
       category: postCategory || "その他",
+      sellerId,
+      sellerName,
     };
     const updated = [newProduct, ...products];
     setProducts(updated);

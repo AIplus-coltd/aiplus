@@ -1,8 +1,8 @@
 "use client";
 
 import { useRouter, usePathname } from "next/navigation";
+import { useState, useEffect } from "react";
 
-const ACTIVE_COLOR = "#38BDF8";
 const BG_DARK = "#0B1020";
 const COLOR_SUB = "#9CA3AF";
 
@@ -14,8 +14,9 @@ const TABS = [
   { key: "profile", label: "Profile", icon: "profile" },
 ];
 
-function GradIcon({ type, active }: { type: string; active?: boolean }) {
+function GradIcon({ type, active, themeColor = "#64b5f6" }: { type: string; active?: boolean; themeColor?: string }) {
   const size = type === "play" ? 30 : 26;
+  const strokeColor = active ? themeColor : COLOR_SUB;
 
   if (type === "play") {
     return (
@@ -36,7 +37,7 @@ function GradIcon({ type, active }: { type: string; active?: boolean }) {
 
   if (type === "home") {
     return (
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? ACTIVE_COLOR : COLOR_SUB} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={strokeColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M3 11.5L12 4l9 7.5" />
         <path d="M5 10.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9.5" />
       </svg>
@@ -45,7 +46,7 @@ function GradIcon({ type, active }: { type: string; active?: boolean }) {
 
   if (type === "shop") {
     return (
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? ACTIVE_COLOR : COLOR_SUB} strokeWidth="2" strokeLinecap="round">
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={strokeColor} strokeWidth="2" strokeLinecap="round">
         <path d="M3 4h2l2 12h10l2-8H7" />
         <circle cx="9" cy="20" r="2" />
         <circle cx="17" cy="20" r="2" />
@@ -55,7 +56,7 @@ function GradIcon({ type, active }: { type: string; active?: boolean }) {
 
   if (type === "profile") {
     return (
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? ACTIVE_COLOR : COLOR_SUB} strokeWidth="2" strokeLinecap="round">
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={strokeColor} strokeWidth="2" strokeLinecap="round">
         <circle cx="12" cy="8" r="4" />
         <path d="M4 20c0-4 8-4 8-4s8 0 8 4" />
       </svg>
@@ -64,7 +65,7 @@ function GradIcon({ type, active }: { type: string; active?: boolean }) {
 
   if (type === "upload") {
     return (
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? ACTIVE_COLOR : COLOR_SUB} strokeWidth="2" strokeLinecap="round">
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={strokeColor} strokeWidth="2" strokeLinecap="round">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
         <polyline points="17 8 12 3 7 8" />
         <line x1="12" y1="3" x2="12" y2="15" />
@@ -73,7 +74,7 @@ function GradIcon({ type, active }: { type: string; active?: boolean }) {
   }
 
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? ACTIVE_COLOR : COLOR_SUB} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={strokeColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M4 7a2 2 0 0 1 2-2h2l2-2h4l2 2h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7z" />
       <circle cx="12" cy="12" r="3.5" />
       <circle cx="18" cy="9" r="1" />
@@ -84,6 +85,22 @@ function GradIcon({ type, active }: { type: string; active?: boolean }) {
 export default function BottomNav() {
   const router = useRouter();
   const pathname = usePathname();
+  const [themeColor, setThemeColor] = useState("#64b5f6");
+
+  useEffect(() => {
+    const savedThemeColor = localStorage.getItem("themeColor");
+    if (savedThemeColor) {
+      setThemeColor(savedThemeColor);
+    }
+
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === "themeColor" && e.newValue) {
+        setThemeColor(e.newValue);
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
 
   const isActive = (key: string) => {
     if (key === "feed") return pathname === "/tabs/feed";
@@ -130,14 +147,14 @@ export default function BottomNav() {
             alignItems: "center",
             justifyContent: "center",
             gap: 4,
-            color: isActive(tab.key) ? ACTIVE_COLOR : COLOR_SUB,
+            color: isActive(tab.key) ? themeColor : COLOR_SUB,
             transition: "all 0.3s ease",
             filter: isActive(tab.key)
-              ? "drop-shadow(0 0 10px rgba(56,189,248,0.9)) drop-shadow(0 0 20px rgba(56,189,248,0.5))"
+              ? `drop-shadow(0 0 10px ${themeColor}e6) drop-shadow(0 0 20px ${themeColor}80)`
               : "none",
           }}
         >
-          <GradIcon type={tab.icon} active={isActive(tab.key)} />
+          <GradIcon type={tab.icon} active={isActive(tab.key)} themeColor={themeColor} />
         </button>
       ))}
     </nav>

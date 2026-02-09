@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 const DRAFT_KEY = "draftVideos";
@@ -15,17 +15,21 @@ type DraftRow = {
   thumbnail_url?: string;
   created_at: string;
   hashtags?: string[];
-  session?: any;
+  session?: DraftSession;
 };
 
-export default function DraftPage() {
-  const router = useRouter();
-  const [drafts, setDrafts] = useState<DraftRow[]>([]);
-  const [themeColor, setThemeColor] = useState<string>("#2b7ba8");
+type DraftSession = {
+  videoUrl?: string;
+  thumbnailDataUrl?: string;
+  [key: string]: unknown;
+};
 
-  useEffect(() => {
-    const savedSettings = localStorage.getItem("appSettings");
-    const settings = savedSettings ? JSON.parse(savedSettings) : {};
+const getInitialThemeColor = () => {
+  if (typeof window === "undefined") return "#2b7ba8";
+  const savedSettings = localStorage.getItem("appSettings");
+  if (!savedSettings) return "#2b7ba8";
+  try {
+    const settings = JSON.parse(savedSettings);
     const color = settings.themeColor || "blue";
     const themeMap: Record<string, string> = {
       pink: "#2b7ba8",
@@ -33,18 +37,28 @@ export default function DraftPage() {
       green: "#2b7ba8",
       purple: "#2b7ba8",
     };
-    setThemeColor(themeMap[color] || "#2b7ba8");
+    return themeMap[color] || "#2b7ba8";
+  } catch {
+    return "#2b7ba8";
+  }
+};
 
-    const savedDrafts = localStorage.getItem(DRAFT_KEY);
-    if (savedDrafts) {
-      try {
-        const parsed = JSON.parse(savedDrafts);
-        setDrafts(parsed);
-      } catch {
-        setDrafts([]);
-      }
-    }
-  }, []);
+const getInitialDrafts = (): DraftRow[] => {
+  if (typeof window === "undefined") return [];
+  const savedDrafts = localStorage.getItem(DRAFT_KEY);
+  if (!savedDrafts) return [];
+  try {
+    const parsed = JSON.parse(savedDrafts);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+export default function DraftPage() {
+  const router = useRouter();
+  const [drafts, setDrafts] = useState<DraftRow[]>(() => getInitialDrafts());
+  const [themeColor] = useState<string>(() => getInitialThemeColor());
 
   const deleteDraft = (id: string) => {
     const updated = drafts.filter((d) => d.id !== id);

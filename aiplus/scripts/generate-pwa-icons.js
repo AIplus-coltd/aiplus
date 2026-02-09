@@ -19,7 +19,7 @@ const checkSharp = async () => {
 const generateIcons = async () => {
   const sharp = await checkSharp();
   
-  const inputFile = path.join(__dirname, '../public/logo/logo.svg');
+  const inputFile = path.join(__dirname, '../public/logo/8eb520b9-6e5b-4134-bc95-23ac4fa7e104.png');
   const outputDir = path.join(__dirname, '../public/icons');
 
   // アイコンディレクトリを作成

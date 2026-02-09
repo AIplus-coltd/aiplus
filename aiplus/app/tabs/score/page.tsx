@@ -34,6 +34,37 @@ export default function ScorePage() {
   const [rankings, setRankings] = useState<UserRanking[]>([]);
   const [userScore, setUserScore] = useState(0);
 
+  const generateRankings = (videos: Video[]) => {
+    // ユーザーごとのスコア集計
+    const userScores: Record<string, { totalScore: number; videoCount: number }> = {};
+
+    videos.forEach((video: Video) => {
+      const userId = video.user_id;
+      if (!userScores[userId]) {
+        userScores[userId] = { totalScore: 0, videoCount: 0 };
+      }
+      userScores[userId].totalScore += video.aiScore || 0;
+      userScores[userId].videoCount += 1;
+    });
+
+    // ランキングを作成
+    const rankingList: UserRanking[] = Object.entries(userScores)
+      .map(([userId, data], index) => ({
+        user_id: userId,
+        username: userId.replace("test-user-", "User"),
+        totalScore: data.totalScore,
+        videoCount: data.videoCount,
+        rank: index + 1,
+      }))
+      .sort((a, b) => b.totalScore - a.totalScore)
+      .map((user, index) => ({
+        ...user,
+        rank: index + 1,
+      }));
+
+    setRankings(rankingList);
+  };
+
   useEffect(() => {
     // テーマ設定を取得
     const savedSettings = localStorage.getItem("appSettings");
@@ -141,36 +172,6 @@ export default function ScorePage() {
     return () => window.removeEventListener("themeChanged", handleThemeChange);
   }, []);
 
-  const generateRankings = (videos: Video[]) => {
-    // ユーザーごとのスコア集計
-    const userScores: Record<string, { totalScore: number; videoCount: number }> = {};
-
-    videos.forEach((video: Video) => {
-      const userId = video.user_id;
-      if (!userScores[userId]) {
-        userScores[userId] = { totalScore: 0, videoCount: 0 };
-      }
-      userScores[userId].totalScore += video.aiScore || 0;
-      userScores[userId].videoCount += 1;
-    });
-
-    // ランキングを作成
-    const rankingList: UserRanking[] = Object.entries(userScores)
-      .map(([userId, data], index) => ({
-        user_id: userId,
-        username: userId.replace("test-user-", "User"),
-        totalScore: data.totalScore,
-        videoCount: data.videoCount,
-        rank: index + 1,
-      }))
-      .sort((a, b) => b.totalScore - a.totalScore)
-      .map((user, index) => ({
-        ...user,
-        rank: index + 1,
-      }));
-
-    setRankings(rankingList);
-  };
 
   const handleGenerateAiAdvice = () => {
     const currentVideo = myVideos[currentSlideIndex];
@@ -228,11 +229,28 @@ export default function ScorePage() {
           boxShadow: backgroundColor === "light"
             ? "0 2px 16px rgba(0,0,0,.08), inset 0 -1px 0 rgba(0,0,0,.05)"
             : `0 2px 16px ${themeColor}33, inset 0 -1px 0 ${themeColor}1a`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
         }}
       >
+        <button
+          onClick={() => router.back()}
+          style={{
+            background: "transparent",
+            border: "none",
+            color: themeColor,
+            cursor: "pointer",
+            fontSize: 20,
+            padding: 4,
+          }}
+        >
+          ←
+        </button>
         <div style={{ fontWeight: "bold", color: themeColor, textShadow: `0 0 16px ${themeColor}66`, textAlign: "center", fontSize: 18 }}>
           🎯 スコア
         </div>
+        <div style={{ width: 24 }} />
       </div>
 
       {/* コンテンツ */}
