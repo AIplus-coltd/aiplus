@@ -67,7 +67,7 @@ export default function ProfileViewPage() {
   const [totalRevenue, setTotalRevenue] = useState(0);
   const [sellerBalance, setSellerBalance] = useState(0);
   const [mailList, setMailList] = useState<MailItem[]>([]);
-  const [selectedMail, setSelectedMail] = useState<number | null>(null);
+  const [selectedMail, setSelectedMail] = useState<string | null>(null);
   const [ideaMessages, setIdeaMessages] = useState<{ id: string; role: "ai" | "user"; text: string }[]>([
     {
       id: "ai-welcome",
