@@ -861,7 +861,7 @@ export default function ProfileViewPage() {
                     </div>
                     <div style={{ textAlign: "right" }}>
                       <div style={{ fontWeight: "bold", color: themeColor }}>
-                        ¥{sale.amount.toLocaleString()}
+                        ¥{(sale.amount ?? 0).toLocaleString()}
                       </div>
                       <div style={{ fontSize: 10, opacity: 0.7 }}>
                         {sale?.payoutStatus === "completed" || sale?.payoutStatus === "paid" || sale?.paidAt ? "送金完了" : "送金予定"}
