@@ -42,6 +42,7 @@ next-env.d.ts
 
 # large video files and images
 *.mp4
+*.mov
 *.png
 !public/logo/8eb520b9-6e5b-4134-bc95-23ac4fa7e104.png
 *.jpg
